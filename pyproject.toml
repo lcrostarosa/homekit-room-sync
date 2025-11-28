@@ -9,7 +9,7 @@ repository = "https://github.com/lcrostarosa/homekit-room-sync"
 package-mode = false
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = "^3.12"
 
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.8.0"
@@ -23,7 +23,7 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.ruff]
-target-version = "py311"
+target-version = "py312"
 line-length = 88
 
 [tool.ruff.lint]
@@ -46,7 +46,7 @@ ignore = [
 known-first-party = ["custom_components.homekit_room_sync"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
