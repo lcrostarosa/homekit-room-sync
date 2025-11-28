@@ -10,7 +10,7 @@
 > 
 > - Pre-alpha status: Expect breaking changes and incomplete features
 > - Untested: Has not been thoroughly tested in real environments
-> - Use at your own risk: May cause issues with your HomeKit setup
+> - Use at your own risk: May cause issues with your HomeKit setup. PLEASE BACK UP YOUR SYSTEM BEFORE TRY
 > 
 > **Looking for contributors!** If you're interested in Home Assistant development or want to help test, please check out our [Contributing Guide](CONTRIBUTING.md).
 
@@ -23,6 +23,34 @@ When you expose entities to Apple HomeKit through the [HomeKit Bridge integratio
 1. **Monitoring Changes**: Listening for entity and area registry updates in real-time
 2. **Syncing Rooms**: Automatically updating HomeKit room assignments to match your Home Assistant areas
 3. **Applying Changes**: Triggering a HomeKit Bridge reload to apply the changes to the Apple Home app
+
+## Why This Exists
+
+The [HomeKit Bridge configuration](https://www.home-assistant.io/integrations/homekit#configuration) in Home Assistant has **no concept of filtering entities by Area**.
+
+You can filter by domains (lights, switches, fans, etc.) and use wildcards, but this approach is opinionated and becomes a maintenance headache over time. Every time you add a new device, you have to think about whether it matches your existing filters:
+
+```yaml
+- filter:
+    include_domains:
+      - alarm_control_panel
+      - light
+      - media_player
+    include_entity_globs:
+      - binary_sensor.*_occupancy
+    include_entities:
+      - binary_sensor.living_room_motion
+  entity_config:
+    alarm_control_panel.home:
+      code: 1234
+    binary_sensor.living_room_motion:
+      linked_battery_sensor: sensor.living_room_motion_battery
+      low_battery_threshold: 31
+```
+
+**The problem:** You organize your smart home by rooms (Areas) in Home Assistant, but HomeKit Bridge forces you to think in terms of entity types and naming patterns. This disconnect makes configuration fragile and tedious to maintain.
+
+**The solution:** HomeKit Room Sync bridges this gap. Organize your devices into Areas in Home Assistant, and this integration automatically syncs those room assignments to your HomeKit bridges. Add a device to an Area once, and it just works.
 
 ## Features
 
