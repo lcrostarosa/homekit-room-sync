@@ -1,0 +1,39 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Select HomeKit Bridge",
+        "description": "Select a HomeKit Bridge to sync room assignments for. Found {bridge_count} available bridge(s).",
+        "data": {
+          "bridge_name": "HomeKit Bridge"
+        }
+      },
+      "room": {
+        "title": "Default Room",
+        "description": "Select a default room for entities in the '{bridge_name}' bridge that don't have an assigned area in Home Assistant. This is optional.",
+        "data": {
+          "default_room": "Default Room"
+        }
+      }
+    },
+    "abort": {
+      "no_bridges": "No HomeKit Bridge configurations found. Please set up the HomeKit Bridge integration first.",
+      "all_bridges_configured": "All available HomeKit Bridges have already been configured."
+    },
+    "error": {
+      "invalid_bridge": "The selected bridge is not valid or no longer exists."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "HomeKit Room Sync Options",
+        "description": "Configure room sync options for the '{bridge_name}' bridge.",
+        "data": {
+          "default_room": "Default Room"
+        }
+      }
+    }
+  }
+}
+

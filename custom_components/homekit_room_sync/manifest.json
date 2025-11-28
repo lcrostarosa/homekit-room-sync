@@ -1,0 +1,13 @@
+{
+  "domain": "homekit_room_sync",
+  "name": "HomeKit Room Sync",
+  "version": "0.0.1",
+  "codeowners": ["@lcrostarosa"],
+  "config_flow": true,
+  "dependencies": ["homekit"],
+  "documentation": "https://github.com/lcrostarosa/homekit-room-sync",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/lcrostarosa/homekit-room-sync/issues",
+  "requirements": []
+}
+

@@ -1,0 +1,102 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  pull_request:
+    branches:
+      - master
+      - main
+
+jobs:
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: latest
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Load cached venv
+        id: cached-poetry-dependencies
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install dependencies
+        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+        run: poetry install --no-interaction --no-root
+
+      - name: Install project
+        run: poetry install --no-interaction
+
+      - name: Run Ruff linter
+        run: poetry run ruff check custom_components/
+
+      - name: Run Ruff formatter check
+        run: poetry run ruff format --check custom_components/
+
+  validate:
+    name: Validate Integration
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate manifest.json
+        run: |
+          if ! jq empty custom_components/homekit_room_sync/manifest.json 2>/dev/null; then
+            echo "Invalid JSON in manifest.json"
+            exit 1
+          fi
+          
+          # Check required fields
+          DOMAIN=$(jq -r '.domain' custom_components/homekit_room_sync/manifest.json)
+          VERSION=$(jq -r '.version' custom_components/homekit_room_sync/manifest.json)
+          
+          if [ "$DOMAIN" != "homekit_room_sync" ]; then
+            echo "Domain mismatch in manifest.json"
+            exit 1
+          fi
+          
+          if [ -z "$VERSION" ] || [ "$VERSION" == "null" ]; then
+            echo "Missing version in manifest.json"
+            exit 1
+          fi
+          
+          echo "manifest.json is valid"
+          echo "Domain: $DOMAIN"
+          echo "Version: $VERSION"
+
+      - name: Validate strings.json
+        run: |
+          if ! jq empty custom_components/homekit_room_sync/strings.json 2>/dev/null; then
+            echo "Invalid JSON in strings.json"
+            exit 1
+          fi
+          echo "strings.json is valid"
+
+      - name: Validate hacs.json
+        run: |
+          if ! jq empty hacs.json 2>/dev/null; then
+            echo "Invalid JSON in hacs.json"
+            exit 1
+          fi
+          echo "hacs.json is valid"
+
