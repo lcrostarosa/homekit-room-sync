@@ -1,7 +1,18 @@
 # HomeKit Room Sync
 
+[![Status: Pre-Alpha](https://img.shields.io/badge/Status-Pre--Alpha-red.svg)](https://github.com/lcrostarosa/homekit-room-sync)
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Contributors Welcome](https://img.shields.io/badge/Contributors-Welcome-brightgreen.svg)](https://github.com/lcrostarosa/homekit-room-sync/blob/master/CONTRIBUTING.md)
+
+> [!CAUTION]
+> **This project is in active development and is NOT ready for production use.**
+> 
+> - Pre-alpha status: Expect breaking changes and incomplete features
+> - Untested: Has not been thoroughly tested in real environments
+> - Use at your own risk: May cause issues with your HomeKit setup
+> 
+> **Looking for contributors!** If you're interested in Home Assistant development or want to help test, please check out our [Contributing Guide](CONTRIBUTING.md).
 
 A Home Assistant custom integration that automatically synchronizes your Home Assistant Areas with HomeKit Room assignments.
 
