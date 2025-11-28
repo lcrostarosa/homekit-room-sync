@@ -97,9 +97,7 @@ class HomeKitRoomSyncCoordinator:
 
         # Check if the storage file exists
         if not await self._file_exists(storage_file):
-            _LOGGER.warning(
-                "HomeKit bridge storage file not found: %s", storage_file
-            )
+            _LOGGER.warning("HomeKit bridge storage file not found: %s", storage_file)
             return False
 
         try:
@@ -159,9 +157,7 @@ class HomeKitRoomSyncCoordinator:
                     return True
                 return False
 
-            _LOGGER.debug(
-                "No room changes needed for bridge: %s", self._bridge_name
-            )
+            _LOGGER.debug("No room changes needed for bridge: %s", self._bridge_name)
             return True
 
         except Exception as err:
@@ -215,7 +211,7 @@ class HomeKitRoomSyncCoordinator:
         if area_id:
             area_entry = area_registry.async_get_area(area_id)
             if area_entry:
-                return area_entry.name
+                return str(area_entry.name)
 
         # Fall back to default room
         return self._default_room
@@ -229,7 +225,8 @@ class HomeKitRoomSyncCoordinator:
         Returns:
             True if the file exists, False otherwise.
         """
-        return await self.hass.async_add_executor_job(path.exists)
+        result = await self.hass.async_add_executor_job(path.exists)
+        return bool(result)
 
     async def _read_storage_file(self, path: Path) -> dict[str, Any] | None:
         """Read and parse a JSON storage file.
@@ -257,9 +254,7 @@ class HomeKitRoomSyncCoordinator:
             _LOGGER.error("Failed to read storage file %s: %s", path, err)
             return None
 
-    async def _write_storage_file(
-        self, path: Path, data: dict[str, Any]
-    ) -> bool:
+    async def _write_storage_file(self, path: Path, data: dict[str, Any]) -> bool:
         """Write data to a storage file.
 
         Args:
@@ -288,9 +283,7 @@ class HomeKitRoomSyncCoordinator:
         """
         backup_path = path.with_suffix(f"{path.suffix}.backup")
         try:
-            await self.hass.async_add_executor_job(
-                shutil.copy2, path, backup_path
-            )
+            await self.hass.async_add_executor_job(shutil.copy2, path, backup_path)
             _LOGGER.debug("Created backup: %s", backup_path)
             return True
         except OSError as err:

@@ -25,7 +25,7 @@ from .coordinator import HomeKitRoomSyncCoordinator
 _LOGGER = logging.getLogger(__name__)
 
 
-class HomeKitRoomSyncConfigFlow(ConfigFlow, domain=DOMAIN):
+class HomeKitRoomSyncConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg]
     """Handle a config flow for HomeKit Room Sync.
 
     This config flow guides the user through selecting a HomeKit bridge
@@ -77,8 +77,7 @@ class HomeKitRoomSyncConfigFlow(ConfigFlow, domain=DOMAIN):
 
         # Check for already configured bridges
         configured_bridges = {
-            entry.data[CONF_BRIDGE_NAME]
-            for entry in self._async_current_entries()
+            entry.data[CONF_BRIDGE_NAME] for entry in self._async_current_entries()
         }
         available_bridges = [b for b in bridges if b not in configured_bridges]
 
@@ -106,9 +105,7 @@ class HomeKitRoomSyncConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id="user",
             data_schema=schema,
             errors=errors,
-            description_placeholders={
-                "bridge_count": str(len(available_bridges))
-            },
+            description_placeholders={"bridge_count": str(len(available_bridges))},
         )
 
     async def async_step_room(
@@ -129,10 +126,7 @@ class HomeKitRoomSyncConfigFlow(ConfigFlow, domain=DOMAIN):
 
         # Get available areas/rooms
         area_registry = ar.async_get(self.hass)
-        areas = {
-            area.name: area.name
-            for area in area_registry.async_list_areas()
-        }
+        areas = {area.name: area.name for area in area_registry.async_list_areas()}
 
         # Add "None" option for no default room
         room_options = {"": "(No default room)"} | areas
@@ -152,9 +146,7 @@ class HomeKitRoomSyncConfigFlow(ConfigFlow, domain=DOMAIN):
         # Build the form schema
         schema = vol.Schema(
             {
-                vol.Optional(CONF_DEFAULT_ROOM, default=""): vol.In(
-                    room_options
-                ),
+                vol.Optional(CONF_DEFAULT_ROOM, default=""): vol.In(room_options),
             }
         )
 
@@ -196,10 +188,7 @@ class HomeKitRoomSyncOptionsFlow(OptionsFlow):
 
         # Get available areas/rooms
         area_registry = ar.async_get(self.hass)
-        areas = {
-            area.name: area.name
-            for area in area_registry.async_list_areas()
-        }
+        areas = {area.name: area.name for area in area_registry.async_list_areas()}
 
         # Add "None" option for no default room
         room_options = {"": "(No default room)"} | areas
@@ -208,10 +197,7 @@ class HomeKitRoomSyncOptionsFlow(OptionsFlow):
             default_room = user_input.get(CONF_DEFAULT_ROOM) or None
 
             # Update the config entry data
-            new_data = {
-                **self.config_entry.data,
-                CONF_DEFAULT_ROOM: default_room
-            }
+            new_data = {**self.config_entry.data, CONF_DEFAULT_ROOM: default_room}
             self.hass.config_entries.async_update_entry(
                 self.config_entry, data=new_data
             )
@@ -224,9 +210,9 @@ class HomeKitRoomSyncOptionsFlow(OptionsFlow):
         # Build the form schema
         schema = vol.Schema(
             {
-                vol.Optional(
-                    CONF_DEFAULT_ROOM, default=current_default
-                ): vol.In(room_options),
+                vol.Optional(CONF_DEFAULT_ROOM, default=current_default): vol.In(
+                    room_options
+                ),
             }
         )
 

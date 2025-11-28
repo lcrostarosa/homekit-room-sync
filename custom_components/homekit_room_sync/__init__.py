@@ -102,9 +102,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _LOGGER.debug("Registered listener for %s", EVENT_ENTITY_REGISTRY_UPDATED)
 
     # Listen for area registry updates
-    listeners.append(
-        hass.bus.async_listen(EVENT_AREA_REGISTRY_UPDATED, schedule_sync)
-    )
+    listeners.append(hass.bus.async_listen(EVENT_AREA_REGISTRY_UPDATED, schedule_sync))
     _LOGGER.debug("Registered listener for %s", EVENT_AREA_REGISTRY_UPDATED)
 
     # Store listeners for cleanup
@@ -121,9 +119,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
-async def async_update_options(
-    hass: HomeAssistant, entry: ConfigEntry
-) -> None:
+async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Handle options update.
 
     When options are changed through the UI, reload the integration
@@ -164,15 +160,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     for unsub in entry_data.get("listeners", []):
         unsub()
 
-    _LOGGER.info(
-        "Successfully unloaded HomeKit Room Sync for bridge: %s", entry.title
-    )
+    _LOGGER.info("Successfully unloaded HomeKit Room Sync for bridge: %s", entry.title)
     return True
 
 
-async def async_migrate_entry(
-    _hass: HomeAssistant, entry: ConfigEntry
-) -> bool:
+async def async_migrate_entry(_hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Migrate old entry to new version.
 
     This function handles config entry version migrations for
