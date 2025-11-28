@@ -10,19 +10,11 @@
 > 
 > - Pre-alpha status: Expect breaking changes and incomplete features
 > - Untested: Has not been thoroughly tested in real environments
-> - Use at your own risk: May cause issues with your HomeKit setup. PLEASE BACK UP YOUR SYSTEM BEFORE TRY
+> - Use at your own risk: May cause issues with your HomeKit setup. PLEASE BACK UP YOUR SYSTEM BEFORE TRYNG THIS 
 > 
 > **Looking for contributors!** If you're interested in Home Assistant development or want to help test, please check out our [Contributing Guide](CONTRIBUTING.md).
 
 A Home Assistant custom integration that automatically synchronizes your Home Assistant Areas with HomeKit Room assignments.
-
-## Overview
-
-When you expose entities to Apple HomeKit through the [HomeKit Bridge integration](https://www.home-assistant.io/integrations/homekit/), the room assignments in the Apple Home app can get out of sync with your Home Assistant area assignments. This integration solves that problem by:
-
-1. **Monitoring Changes**: Listening for entity and area registry updates in real-time
-2. **Syncing Rooms**: Automatically updating HomeKit room assignments to match your Home Assistant areas
-3. **Applying Changes**: Triggering a HomeKit Bridge reload to apply the changes to the Apple Home app
 
 ## Why This Exists
 
@@ -36,7 +28,7 @@ You can filter by domains (lights, switches, fans, etc.) and use wildcards, but 
       - alarm_control_panel
       - light
       - media_player
-    include_entity_globs:
+    include_entity_globs: # <<< HERE
       - binary_sensor.*_occupancy
     include_entities:
       - binary_sensor.living_room_motion
@@ -50,7 +42,16 @@ You can filter by domains (lights, switches, fans, etc.) and use wildcards, but 
 
 **The problem:** You organize your smart home by rooms (Areas) in Home Assistant, but HomeKit Bridge forces you to think in terms of entity types and naming patterns. This disconnect makes configuration fragile and tedious to maintain.
 
-**The solution:** HomeKit Room Sync bridges this gap. Organize your devices into Areas in Home Assistant, and this integration automatically syncs those room assignments to your HomeKit bridges. Add a device to an Area once, and it just works.
+**The solution:** HomeKit Room Sync bridges this gap. Organize your devices into Areas in Home Assistant, and this integration automatically syncs those room assignments to your HomeKit bridges. Add a device to an Area once, and it syncs to your Homekit Bridge.
+
+## Overview
+
+When you expose entities to Apple HomeKit through the [HomeKit Bridge integration](https://www.home-assistant.io/integrations/homekit/), the room assignments in the Apple Home app can get out of sync with your Home Assistant area assignments. This integration solves that problem by:
+
+1. **Monitoring Changes**: Listening for entity and area registry updates in real-time
+2. **Syncing Rooms**: Automatically updating HomeKit room assignments to match your Home Assistant areas
+3. **Applying Changes**: Triggering a HomeKit Bridge reload to apply the changes to the Apple Home app
+
 
 ## Features
 
@@ -105,24 +106,24 @@ If you have multiple HomeKit bridges, you can add the integration multiple times
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    Home Assistant                                │
+│                    Home Assistant                               │
 │                                                                 │
-│  ┌──────────────┐    ┌─────────────────────────┐               │
-│  │ Entity/Area  │───▶│ HomeKit Room Sync       │               │
-│  │ Registry     │    │ (Listens for changes)   │               │
-│  └──────────────┘    └───────────┬─────────────┘               │
+│  ┌──────────────┐    ┌─────────────────────────┐                │
+│  │ Entity/Area  │───▶│ HomeKit Room Sync       │                │
+│  │ Registry     │    │ (Listens for changes)   │                │
+│  └──────────────┘    └───────────┬─────────────┘                │
 │                                  │                              │
 │                                  ▼                              │
-│                      ┌─────────────────────────┐               │
-│                      │ .storage/homekit.*.state│               │
-│                      │ (Updates room_name)     │               │
-│                      └───────────┬─────────────┘               │
+│                      ┌─────────────────────────┐                │
+│                      │ .storage/homekit.*.state│                │
+│                      │ (Updates room_name)     │                │
+│                      └───────────┬─────────────┘                │
 │                                  │                              │
 │                                  ▼                              │
-│                      ┌─────────────────────────┐               │
-│                      │ homekit.reload service  │               │
-│                      │ (Applies changes)       │               │
-│                      └───────────┬─────────────┘               │
+│                      ┌─────────────────────────┐                │
+│                      │ homekit.reload service  │                │
+│                      │ (Applies changes)       │                │
+│                      └───────────┬─────────────┘                │
 │                                  │                              │
 └──────────────────────────────────┼──────────────────────────────┘
                                    │
