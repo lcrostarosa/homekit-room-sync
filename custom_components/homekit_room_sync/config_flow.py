@@ -85,11 +85,11 @@ class HomeKitRoomSyncConfigFlow(
             entry.data[CONF_BRIDGE_NAME]
             for entry in self._async_current_entries()
         }
-        
+
         # Filter out configured bridges, keeping the dict structure
         available_bridges = {
-            bid: name 
-            for bid, name in bridges.items() 
+            bid: name
+            for bid, name in bridges.items()
             if bid not in configured_bridges
         }
 
@@ -190,16 +190,9 @@ class HomeKitRoomSyncOptionsFlow(OptionsFlow):
         Args:
             config_entry: The config entry to modify.
         """
-        # Store the config entry without touching the read-only property that
-        # newer HA versions provide.
-        self._config_entry = config_entry
-
-    def _entry(self) -> ConfigEntry:
-        """Return the config entry from HA (if available) or the stored copy."""
-        # On newer HA, OptionsFlow exposes .config_entry; fall back to the
-        # stored value for compatibility with older versions or when hass
-        # is not yet set.
-        return getattr(self, "config_entry", None) or self._config_entry
+        # Store the config entry for backward compatibility with HA versions
+        # that don't set it automatically on OptionsFlow.
+        self.config_entry = config_entry
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -228,15 +221,18 @@ class HomeKitRoomSyncOptionsFlow(OptionsFlow):
             default_room = user_input.get(CONF_DEFAULT_ROOM) or None
 
             # Update the config entry data
-            entry = self._entry()
-            new_data = {**entry.data, CONF_DEFAULT_ROOM: default_room}
-            self.hass.config_entries.async_update_entry(entry, data=new_data)
+            new_data = {
+                **self.config_entry.data,
+                CONF_DEFAULT_ROOM: default_room,
+            }
+            self.hass.config_entries.async_update_entry(
+                self.config_entry, data=new_data
+            )
 
             return self.async_create_entry(title="", data={})
 
         # Get current default room
-        entry = self._entry()
-        current_default = entry.data.get(CONF_DEFAULT_ROOM) or ""
+        current_default = self.config_entry.data.get(CONF_DEFAULT_ROOM) or ""
 
         # Build the form schema
         schema = voluptuous.Schema(
@@ -253,10 +249,10 @@ class HomeKitRoomSyncOptionsFlow(OptionsFlow):
             errors=errors,
             description_placeholders={
         # Prefer the entry title (which contains the friendly name) if available
-        "bridge_name": entry.title.replace(
+        "bridge_name": self.config_entry.title.replace(
             "HomeKit Bridge: ", ""
         )
-        if entry.title
-        else entry.data[CONF_BRIDGE_NAME]
+        if self.config_entry.title
+        else self.config_entry.data[CONF_BRIDGE_NAME]
             },
         )
