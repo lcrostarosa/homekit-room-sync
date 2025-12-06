@@ -240,11 +240,16 @@ class HomeKitRoomSyncCoordinator:
             data = json.loads(content)
 
             # Validate basic structure
-            if not isinstance(data, dict) or "data" not in data:
+            if not isinstance(data, dict):
                 _LOGGER.error("Invalid storage file structure: %s", path)
                 return None
 
-            return data
+            # Handle standard HA storage format (wrapped in "data")
+            if "data" in data:
+                return data
+
+            # Handle flat format (no "data" wrapper)
+            return {"data": data}
         except json.JSONDecodeError as err:
             _LOGGER.error("Failed to parse storage file %s: %s", path, err)
             return None
@@ -301,23 +306,30 @@ class HomeKitRoomSyncCoordinator:
             _LOGGER.warning("Failed to reload HomeKit: %s", err)
 
     @classmethod
-    def get_available_bridges(cls, hass: HomeAssistant) -> list[str]:
-        """Get a list of available HomeKit bridges from storage.
+    def get_available_bridges(cls, hass: HomeAssistant) -> dict[str, str]:
+        """Get a map of available HomeKit bridges from storage.
 
         This method scans the .storage directory for HomeKit bridge
-        state files and extracts their names.
+        state files and maps them to their friendly names from config entries.
 
         Args:
             hass: The Home Assistant instance.
 
         Returns:
-            List of bridge names found in storage.
+            Dictionary mapping bridge ID to friendly name.
         """
         storage_path = Path(hass.config.path()) / ".storage"
-        bridges: list[str] = []
+        bridges: dict[str, str] = {}
 
         if not storage_path.exists():
             return bridges
+
+        # Get all HomeKit config entries for name lookup
+        hk_entries = {}
+        for entry in hass.config_entries.async_entries(HOMEKIT_DOMAIN):
+            # Prefer data["name"] as it's the friendly name set in UI
+            name = entry.data.get("name") or entry.title or "Unknown Bridge"
+            hk_entries[entry.entry_id] = name
 
         for file in storage_path.iterdir():
             if (
@@ -325,12 +337,15 @@ class HomeKitRoomSyncCoordinator:
                 and file.name.startswith(HOMEKIT_STORAGE_PREFIX)
                 and file.name.endswith(HOMEKIT_STORAGE_SUFFIX)
             ):
-                # Extract bridge name from filename
-                # Format: homekit.{bridge_name}.state
+                # Extract bridge ID from filename
+                # Format: homekit.{entry_id}.state
                 prefix_len = len(HOMEKIT_STORAGE_PREFIX)
                 suffix_len = len(HOMEKIT_STORAGE_SUFFIX)
-                name = file.name[prefix_len:-suffix_len]
-                if name:
-                    bridges.append(name)
+                entry_id = file.name[prefix_len:-suffix_len]
+                
+                if entry_id:
+                    # Use friendly name if available, otherwise use ID
+                    friendly_name = hk_entries.get(entry_id, f"Bridge {entry_id}")
+                    bridges[entry_id] = friendly_name
 
-        return sorted(bridges)
+        return bridges

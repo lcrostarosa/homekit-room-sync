@@ -264,19 +264,20 @@ main() {
     fi
 
     # Backup existing installation if present
-    info "Checking for existing installation..."
-    if $DRY_RUN; then
-        echo "  Would check for and backup existing installation"
-    else
-        if run_remote 'test -d "$1"' "$DEST_PATH" 2>/dev/null; then
-            BACKUP_NAME="homekit_room_sync.backup.$(date +%Y%m%d_%H%M%S)"
-            warn "Existing installation found, backing up to $BACKUP_NAME"
-            run_remote 'sudo cp -r "$1" "$2"' "$DEST_PATH" "$CONFIG_PATH_CLEAN/custom_components/$BACKUP_NAME"
-            success "Backup created"
-        else
-            success "No existing installation (fresh install)"
-        fi
-    fi
+    # info "Checking for existing installation..."
+    # if $DRY_RUN; then
+    #     echo "  Would check for and backup existing installation"
+    # else
+    #     if run_remote 'test -d "$1"' "$DEST_PATH" 2>/dev/null; then
+    #         # BACKUP_NAME="homekit_room_sync.backup.$(date +%Y%m%d_%H%M%S)"
+    #         # warn "Existing installation found, backing up to $BACKUP_NAME"
+    #         # run_remote 'sudo cp -r "$1" "$2"' "$DEST_PATH" "$CONFIG_PATH_CLEAN/custom_components/$BACKUP_NAME"
+    #         # success "Backup created"
+    #         info "Existing installation found, overwriting..."
+    #     else
+    #         success "No existing installation (fresh install)"
+    #     fi
+    # fi
 
     # Deploy using rsync
     info "Deploying homekit_room_sync..."

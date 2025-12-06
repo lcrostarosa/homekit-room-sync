@@ -10,9 +10,9 @@
 > 
 > - Pre-alpha status: Expect breaking changes and incomplete features
 > - Untested: Has not been thoroughly tested in real environments
-> - Use at your own risk: May cause issues with your HomeKit setup. PLEASE BACK UP YOUR SYSTEM BEFORE TRYNG THIS 
-> 
-> **Looking for contributors!** If you're interested in Home Assistant development or want to help test, please check out our [Contributing Guide](CONTRIBUTING.md).
+> - Use at your own risk: May cause issues with your HomeKit setup
+>
+> **DISCLAIMER: This integration directly modifies internal Home Assistant storage files. YOU MUST BACK UP YOUR HOME ASSISTANT CONFIGURATION BEFORE INSTALLING OR USING THIS INTEGRATION. The authors are not responsible for any data loss or corruption.**
 
 A Home Assistant custom integration that automatically synchronizes your Home Assistant Areas with HomeKit Room assignments.
 
@@ -20,47 +20,11 @@ A Home Assistant custom integration that automatically synchronizes your Home As
 
 The [HomeKit Bridge configuration](https://www.home-assistant.io/integrations/homekit#configuration) in Home Assistant has **no concept of filtering entities by Area**.
 
-You can filter by domains (lights, switches, fans, etc.) and use wildcards, but this approach is opinionated and becomes a maintenance headache over time. Every time you add a new device, you have to think about whether it matches your existing filters:
-
-```yaml
-- filter:
-    include_domains:
-      - alarm_control_panel
-      - light
-      - media_player
-    include_entity_globs: # <<< HERE
-      - binary_sensor.*_occupancy
-    include_entities:
-      - binary_sensor.living_room_motion
-  entity_config:
-    alarm_control_panel.home:
-      code: 1234
-    binary_sensor.living_room_motion:
-      linked_battery_sensor: sensor.living_room_motion_battery
-      low_battery_threshold: 31
-```
+You can filter by domains (lights, switches, fans, etc.) and use wildcards, but this approach is opinionated and becomes a maintenance headache over time. Every time you add a new device, you have to think about whether it matches your existing filters.
 
 **The problem:** You organize your smart home by rooms (Areas) in Home Assistant, but HomeKit Bridge forces you to think in terms of entity types and naming patterns. This disconnect makes configuration fragile and tedious to maintain.
 
 **The solution:** HomeKit Room Sync bridges this gap. Organize your devices into Areas in Home Assistant, and this integration automatically syncs those room assignments to your HomeKit bridges. Add a device to an Area once, and it syncs to your Homekit Bridge.
-
-## Overview
-
-When you expose entities to Apple HomeKit through the [HomeKit Bridge integration](https://www.home-assistant.io/integrations/homekit/), the room assignments in the Apple Home app can get out of sync with your Home Assistant area assignments. This integration solves that problem by:
-
-1. **Monitoring Changes**: Listening for entity and area registry updates in real-time
-2. **Syncing Rooms**: Automatically updating HomeKit room assignments to match your Home Assistant areas
-3. **Applying Changes**: Triggering a HomeKit Bridge reload to apply the changes to the Apple Home app
-
-
-## Features
-
-- Automatic room synchronization on startup
-- Real-time sync when entities or areas change
-- Configurable default room for entities without area assignments
-- Support for multiple HomeKit bridges
-- Debounced updates to prevent excessive reloads
-- Safe storage modifications with automatic backups
 
 ## Installation
 
@@ -87,9 +51,23 @@ When you expose entities to Apple HomeKit through the [HomeKit Bridge integratio
 1. Go to **Settings** → **Devices & Services**
 2. Click **+ Add Integration**
 3. Search for "HomeKit Room Sync"
-4. Select a HomeKit Bridge from the dropdown
+4. Select a HomeKit Bridge from the dropdown (Friendly names are displayed)
 5. Optionally select a default room for entities without area assignments
 6. Click **Submit**
+
+![Select Bridge](assets/select_bridge.png)
+*Select the HomeKit Bridge you want to sync*
+
+### Usage
+
+Once configured, the integration works automatically in the background.
+
+1. **Assign Areas in Home Assistant**: Go to **Settings > Devices & Services > Entities** and assign an **Area** to your entities (e.g., assign a Light to "Living Room").
+2. **Wait for Sync**: The integration monitors these changes. After a short delay (debounced), it updates the HomeKit configuration.
+3. **Check Apple Home**: Open the Home app on your iOS device. The device should now be in the corresponding Room in HomeKit.
+
+![Apple Home Room](assets/apple_home_room.png)
+*Devices automatically assigned to the correct room in Apple Home*
 
 ### Configuration Options
 
@@ -282,4 +260,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - [Home Assistant](https://www.home-assistant.io/) for the amazing home automation platform
 - [HACS](https://hacs.xyz/) for making custom integration distribution easy
-

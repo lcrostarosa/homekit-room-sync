@@ -70,6 +70,7 @@ class HomeKitRoomSyncConfigFlow(
         errors: dict[str, str] = {}
 
         # Get available bridges
+        # Returns dict[bridge_id, friendly_name]
         bridges = await self.hass.async_add_executor_job(
             HomeKitRoomSyncCoordinator.get_available_bridges, self.hass
         )
@@ -82,7 +83,13 @@ class HomeKitRoomSyncConfigFlow(
             entry.data[CONF_BRIDGE_NAME]
             for entry in self._async_current_entries()
         }
-        available_bridges = [b for b in bridges if b not in configured_bridges]
+        
+        # Filter out configured bridges, keeping the dict structure
+        available_bridges = {
+            bid: name 
+            for bid, name in bridges.items() 
+            if bid not in configured_bridges
+        }
 
         if not available_bridges:
             return self.async_abort(reason="all_bridges_configured")
@@ -98,6 +105,7 @@ class HomeKitRoomSyncConfigFlow(
                 return await self.async_step_room()
 
         # Build the form schema
+        # voluptuous.In with a dict uses keys as valid values but displays values as labels
         schema = voluptuous.Schema(
             {
                 voluptuous.Required(CONF_BRIDGE_NAME): voluptuous.In(available_bridges),
@@ -177,7 +185,9 @@ class HomeKitRoomSyncOptionsFlow(OptionsFlow):
         Args:
             config_entry: The config entry to modify.
         """
-        self.config_entry = config_entry
+        # self.config_entry is automatically set by the parent class in newer HA versions
+        # We don't need to set it manually.
+        pass
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
