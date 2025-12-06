@@ -36,7 +36,7 @@ class EntityRegistry:
         return self._entities.get(entity_id)
 
 
-def async_get(hass: HomeAssistant) -> EntityRegistry:
+def async_get(_hass: HomeAssistant) -> EntityRegistry:
     """Get the entity registry."""
     return MagicMock(spec=EntityRegistry)
 

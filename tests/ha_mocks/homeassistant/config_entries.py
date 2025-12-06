@@ -23,7 +23,7 @@ class ConfigEntry:
         self.version = version
         self.async_on_unload = MagicMock()
 
-    def add_update_listener(self, listener: Any) -> Any:
+    def add_update_listener(self, _listener: Any) -> Any:
         """Add update listener."""
         return MagicMock()
 
@@ -53,8 +53,11 @@ class ConfigFlow:
         data_schema: Any = None,
         errors: dict[str, str] | None = None,
         description_placeholders: dict[str, str] | None = None,
+        **_kwargs: Any,
     ) -> dict[str, Any]:
         """Show a form."""
+        # description_placeholders accepted for compatibility
+        _ = description_placeholders
         return {
             "type": "form",
             "step_id": step_id,
@@ -87,8 +90,10 @@ class OptionsFlow:
         data_schema: Any = None,
         errors: dict[str, str] | None = None,
         description_placeholders: dict[str, str] | None = None,
+        **_kwargs: Any,
     ) -> dict[str, Any]:
         """Show a form."""
+        _ = description_placeholders
         return {
             "type": "form",
             "step_id": step_id,

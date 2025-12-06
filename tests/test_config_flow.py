@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -12,7 +12,6 @@ from custom_components.homekit_room_sync.config_flow import (
 from custom_components.homekit_room_sync.const import (
     CONF_BRIDGE_NAME,
     CONF_DEFAULT_ROOM,
-    DOMAIN,
 )
 
 
@@ -35,7 +34,7 @@ class TestHomeKitRoomSyncConfigFlow:
             "HomeKitRoomSyncCoordinator.get_available_bridges",
             return_value=[],
         ):
-            flow.hass.async_add_executor_job = MagicMock(return_value=[])
+            flow.hass.async_add_executor_job = AsyncMock(return_value=[])
             result = await flow.async_step_user()
 
         assert result["type"] == "abort"
@@ -120,7 +119,7 @@ class TestHomeKitRoomSyncConfigFlow:
         flow._bridge_name = "bridge1"
 
         with patch(
-            "custom_components.homekit_room_sync.config_flow.ar.async_get",
+            "custom_components.homekit_room_sync.config_flow.area_registry.async_get",
             return_value=mock_area_registry,
         ):
             result = await flow.async_step_room({CONF_DEFAULT_ROOM: "Living Room"})
@@ -140,7 +139,7 @@ class TestHomeKitRoomSyncConfigFlow:
         flow._bridge_name = "bridge1"
 
         with patch(
-            "custom_components.homekit_room_sync.config_flow.ar.async_get",
+            "custom_components.homekit_room_sync.config_flow.area_registry.async_get",
             return_value=mock_area_registry,
         ):
             result = await flow.async_step_room({CONF_DEFAULT_ROOM: ""})
@@ -166,7 +165,7 @@ class TestHomeKitRoomSyncOptionsFlow:
         flow.hass.config_entries = MagicMock()
 
         with patch(
-            "custom_components.homekit_room_sync.config_flow.ar.async_get",
+            "custom_components.homekit_room_sync.config_flow.area_registry.async_get",
             return_value=mock_area_registry,
         ):
             result = await flow.async_step_init()
@@ -189,7 +188,7 @@ class TestHomeKitRoomSyncOptionsFlow:
         flow.hass.config_entries.async_update_entry = MagicMock()
 
         with patch(
-            "custom_components.homekit_room_sync.config_flow.ar.async_get",
+            "custom_components.homekit_room_sync.config_flow.area_registry.async_get",
             return_value=mock_area_registry,
         ):
             result = await flow.async_step_init({CONF_DEFAULT_ROOM: "Bedroom"})

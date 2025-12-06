@@ -85,14 +85,14 @@ def mock_entity_registry() -> MagicMock:
     entity_without_area.area_id = None
     entity_without_area.device_id = None
 
+    entity_map = {
+        "light.living_room": entity_with_area,
+        "switch.bedroom": entity_with_device,
+        "sensor.unknown": entity_without_area,
+    }
+
     def get_entity(entity_id: str):
-        if entity_id == "light.living_room":
-            return entity_with_area
-        elif entity_id == "switch.bedroom":
-            return entity_with_device
-        elif entity_id == "sensor.unknown":
-            return entity_without_area
-        return None
+        return entity_map.get(entity_id)
 
     registry.async_get = get_entity
     return registry

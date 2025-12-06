@@ -34,7 +34,7 @@ class AreaRegistry:
         return list(self._areas.values())
 
 
-def async_get(hass: HomeAssistant) -> AreaRegistry:
+def async_get(_hass: HomeAssistant) -> AreaRegistry:
     """Get the area registry."""
     return MagicMock(spec=AreaRegistry)
 

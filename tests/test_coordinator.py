@@ -72,15 +72,15 @@ class TestHomeKitRoomSyncCoordinator:
 
         with (
             patch(
-                "custom_components.homekit_room_sync.coordinator.er.async_get",
+                "custom_components.homekit_room_sync.coordinator.entity_registry.async_get",
                 return_value=mock_entity_registry,
             ),
             patch(
-                "custom_components.homekit_room_sync.coordinator.dr.async_get",
+                "custom_components.homekit_room_sync.coordinator.device_registry.async_get",
                 return_value=mock_device_registry,
             ),
             patch(
-                "custom_components.homekit_room_sync.coordinator.ar.async_get",
+                "custom_components.homekit_room_sync.coordinator.area_registry.async_get",
                 return_value=mock_area_registry,
             ),
         ):
@@ -139,15 +139,15 @@ class TestHomeKitRoomSyncCoordinator:
 
         with (
             patch(
-                "custom_components.homekit_room_sync.coordinator.er.async_get",
+                "custom_components.homekit_room_sync.coordinator.entity_registry.async_get",
                 return_value=mock_entity_registry,
             ),
             patch(
-                "custom_components.homekit_room_sync.coordinator.dr.async_get",
+                "custom_components.homekit_room_sync.coordinator.device_registry.async_get",
                 return_value=mock_device_registry,
             ),
             patch(
-                "custom_components.homekit_room_sync.coordinator.ar.async_get",
+                "custom_components.homekit_room_sync.coordinator.area_registry.async_get",
                 return_value=mock_area_registry,
             ),
         ):

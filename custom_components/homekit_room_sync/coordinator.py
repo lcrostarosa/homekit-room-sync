@@ -15,9 +15,7 @@ from typing import TYPE_CHECKING, Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import area_registry as ar
-from homeassistant.helpers import device_registry as dr
-from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import area_registry, device_registry, entity_registry
 
 from .const import (
     CONF_BRIDGE_NAME,
@@ -58,7 +56,7 @@ class HomeKitRoomSyncCoordinator:
         self.entry = entry
         self._bridge_name: str = entry.data[CONF_BRIDGE_NAME]
         self._default_room: str | None = entry.data.get(CONF_DEFAULT_ROOM)
-        self._storage_path: Path = Path(hass.config.path(".storage"))
+        self._storage_path: Path = Path(hass.config.path()) / ".storage"
         self._sync_lock = asyncio.Lock()
 
     @property
@@ -107,9 +105,9 @@ class HomeKitRoomSyncCoordinator:
                 return False
 
             # Get registries for area lookups
-            entity_registry = er.async_get(self.hass)
-            device_registry = dr.async_get(self.hass)
-            area_registry = ar.async_get(self.hass)
+            entity_reg = entity_registry.async_get(self.hass)
+            device_reg = device_registry.async_get(self.hass)
+            area_reg = area_registry.async_get(self.hass)
 
             # Track if any changes were made
             changes_made = False
@@ -125,9 +123,9 @@ class HomeKitRoomSyncCoordinator:
                     # Determine the appropriate room for this entity
                     room_name = self._get_room_for_entity(
                         entity_id,
-                        entity_registry,
-                        device_registry,
-                        area_registry,
+                        entity_reg,
+                        device_reg,
+                        area_reg,
                     )
 
                     # Update room if it changed
@@ -315,7 +313,7 @@ class HomeKitRoomSyncCoordinator:
         Returns:
             List of bridge names found in storage.
         """
-        storage_path = Path(hass.config.path(".storage"))
+        storage_path = Path(hass.config.path()) / ".storage"
         bridges: list[str] = []
 
         if not storage_path.exists():

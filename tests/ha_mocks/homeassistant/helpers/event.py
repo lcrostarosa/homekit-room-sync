@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock
 
 if TYPE_CHECKING:
@@ -10,9 +11,9 @@ if TYPE_CHECKING:
 
 
 def async_call_later(
-    hass: HomeAssistant,
-    delay: float,
-    action: Callable[..., Any],
+    _hass: HomeAssistant,
+    _delay: float,
+    _action: Callable[..., Any],
 ) -> Callable[[], None]:
     """Schedule a callback after a delay."""
     return MagicMock()

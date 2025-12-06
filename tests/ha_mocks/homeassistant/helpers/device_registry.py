@@ -30,7 +30,7 @@ class DeviceRegistry:
         return self._devices.get(device_id)
 
 
-def async_get(hass: HomeAssistant) -> DeviceRegistry:
+def async_get(_hass: HomeAssistant) -> DeviceRegistry:
     """Get the device registry."""
     return MagicMock(spec=DeviceRegistry)
 
