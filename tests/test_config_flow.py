@@ -10,6 +10,7 @@ from custom_components.homekit_room_sync.config_flow import (
     HomeKitRoomSyncConfigFlow,
 )
 from custom_components.homekit_room_sync.const import (
+    CONF_ALLOWED_AREAS,
     CONF_BRIDGE_NAME,
     CONF_DEFAULT_ROOM,
 )
@@ -129,6 +130,7 @@ class TestHomeKitRoomSyncConfigFlow:
         assert result["data"] == {
             CONF_BRIDGE_NAME: "bridge1",
             CONF_DEFAULT_ROOM: "Living Room",
+            CONF_ALLOWED_AREAS: [],
         }
 
     @pytest.mark.asyncio
@@ -162,6 +164,7 @@ class TestHomeKitRoomSyncConfigFlow:
 
         assert result["type"] == "create_entry"
         assert result["data"][CONF_DEFAULT_ROOM] is None
+        assert result["data"][CONF_ALLOWED_AREAS] == []
 
 
 class TestHomeKitRoomSyncOptionsFlow:
@@ -207,8 +210,15 @@ class TestHomeKitRoomSyncOptionsFlow:
             "custom_components.homekit_room_sync.config_flow.area_registry.async_get",
             return_value=mock_area_registry,
         ):
-            result = await flow.async_step_init({CONF_DEFAULT_ROOM: "Bedroom"})
+            result = await flow.async_step_init(
+                {
+                    CONF_DEFAULT_ROOM: "Bedroom",
+                    CONF_ALLOWED_AREAS: ["area_bedroom"],
+                }
+            )
 
         assert result["type"] == "create_entry"
         flow.hass.config_entries.async_update_entry.assert_called_once()
+        update_args = flow.hass.config_entries.async_update_entry.call_args[0][1]
+        assert update_args[CONF_ALLOWED_AREAS] == ["area_bedroom"]
 

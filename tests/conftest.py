@@ -40,6 +40,7 @@ def mock_hass() -> MagicMock:
     hass.bus.async_listen = MagicMock(return_value=MagicMock())
     hass.services = MagicMock()
     hass.services.async_call = AsyncMock()
+    hass.services.async_register = MagicMock()
     hass.config_entries = MagicMock()
     hass.config_entries.async_reload = AsyncMock()
 
@@ -59,6 +60,7 @@ def mock_config_entry() -> MagicMock:
     entry.data = {
         "bridge_name": "test_bridge",
         "default_room": "Living Room",
+        "allowed_areas": [],
     }
     entry.title = "HomeKit Bridge: test_bridge"
     entry.version = 1
@@ -122,9 +124,11 @@ def mock_area_registry() -> MagicMock:
 
     living_room = MagicMock()
     living_room.name = "Living Room"
+    living_room.id = "area_living_room"
 
     bedroom = MagicMock()
     bedroom.name = "Bedroom"
+    bedroom.id = "area_bedroom"
 
     def get_area(area_id: str):
         if area_id == "area_living_room":

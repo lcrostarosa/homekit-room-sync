@@ -17,9 +17,14 @@ from homeassistant.config_entries import (
     OptionsFlow,
 )
 from homeassistant.core import callback
-from homeassistant.helpers import area_registry
+from homeassistant.helpers import area_registry, config_validation as cv
 
-from .const import CONF_BRIDGE_NAME, CONF_DEFAULT_ROOM, DOMAIN
+from .const import (
+    CONF_ALLOWED_AREAS,
+    CONF_BRIDGE_NAME,
+    CONF_DEFAULT_ROOM,
+    DOMAIN,
+)
 from .coordinator import HomeKitRoomSyncCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -36,10 +41,17 @@ class HomeKitRoomSyncConfigFlow(
 
     VERSION = 1
 
+    @callback
+    def is_matching(self, other_flow: object) -> bool:
+        """Return True if handler matches this flow."""
+        if isinstance(other_flow, str):
+            return other_flow == DOMAIN
+        return getattr(other_flow, "handler", None) == DOMAIN
+
     def __init__(self) -> None:
         """Initialize the config flow."""
         self._bridge_name: str | None = None
-        # Store the human-friendly bridge name for display in titles/placeholders
+        # Store friendly bridge name for display in titles/placeholders
         self._bridge_friendly_name: str | None = None
 
     @staticmethod
@@ -98,7 +110,9 @@ class HomeKitRoomSyncConfigFlow(
 
         if user_input is not None:
             self._bridge_name = user_input[CONF_BRIDGE_NAME]
-            self._bridge_friendly_name = available_bridges.get(self._bridge_name)
+            self._bridge_friendly_name = available_bridges.get(
+                self._bridge_name
+            )
 
             # Validate the bridge exists
             if self._bridge_name not in available_bridges:
@@ -108,10 +122,13 @@ class HomeKitRoomSyncConfigFlow(
                 return await self.async_step_room()
 
         # Build the form schema
-        # voluptuous.In with a dict uses keys as valid values but displays values as labels
+        # voluptuous.In with a dict uses keys as valid values but displays
+        # values as labels
         schema = voluptuous.Schema(
             {
-                voluptuous.Required(CONF_BRIDGE_NAME): voluptuous.In(available_bridges),
+                voluptuous.Required(
+                    CONF_BRIDGE_NAME
+                ): voluptuous.In(available_bridges),
             }
         )
 
@@ -143,7 +160,7 @@ class HomeKitRoomSyncConfigFlow(
         # Get available areas/rooms
         registry = area_registry.async_get(self.hass)
         areas = {
-            area.name: area.name
+            area.id or area.name: area.name
             for area in registry.async_list_areas()
         }
 
@@ -152,28 +169,40 @@ class HomeKitRoomSyncConfigFlow(
 
         if user_input is not None:
             default_room = user_input.get(CONF_DEFAULT_ROOM) or None
+            allowed_areas = user_input.get(CONF_ALLOWED_AREAS) or []
 
             # Create the config entry
             return self.async_create_entry(
-    title=f"HomeKit Bridge: {self._bridge_friendly_name or self._bridge_name}",
+                title=(
+                    f"HomeKit Bridge: "
+                    f"{self._bridge_friendly_name or self._bridge_name}"
+                ),
                 data={
                     CONF_BRIDGE_NAME: self._bridge_name,
                     CONF_DEFAULT_ROOM: default_room,
+                    CONF_ALLOWED_AREAS: allowed_areas,
                 },
             )
 
         # Build the form schema
         schema = voluptuous.Schema(
-            {voluptuous.Optional(CONF_DEFAULT_ROOM, default=""): voluptuous.In(room_options)}
+            {
+                voluptuous.Optional(
+                    CONF_ALLOWED_AREAS, default=[]
+                ): cv.multi_select(areas),
+                voluptuous.Optional(
+                    CONF_DEFAULT_ROOM, default=""
+                ): voluptuous.In(room_options),
+            }
         )
 
         return self.async_show_form(
             step_id="room",
             data_schema=schema,
             errors=errors,
-    description_placeholders={
-        "bridge_name": self._bridge_friendly_name or self._bridge_name
-    },
+            description_placeholders={
+                "bridge_name": self._bridge_friendly_name or self._bridge_name
+            },
         )
 
 
@@ -190,9 +219,7 @@ class HomeKitRoomSyncOptionsFlow(OptionsFlow):
         Args:
             config_entry: The config entry to modify.
         """
-        # Store the config entry for backward compatibility with HA versions
-        # that don't set it automatically on OptionsFlow.
-        self.config_entry = config_entry
+        super().__init__(config_entry)
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -210,7 +237,7 @@ class HomeKitRoomSyncOptionsFlow(OptionsFlow):
         # Get available areas/rooms
         registry = area_registry.async_get(self.hass)
         areas = {
-            area.name: area.name
+            area.id or area.name: area.name
             for area in registry.async_list_areas()
         }
 
@@ -219,11 +246,13 @@ class HomeKitRoomSyncOptionsFlow(OptionsFlow):
 
         if user_input is not None:
             default_room = user_input.get(CONF_DEFAULT_ROOM) or None
+            allowed_areas = user_input.get(CONF_ALLOWED_AREAS) or []
 
             # Update the config entry data
             new_data = {
                 **self.config_entry.data,
                 CONF_DEFAULT_ROOM: default_room,
+                CONF_ALLOWED_AREAS: allowed_areas,
             }
             self.hass.config_entries.async_update_entry(
                 self.config_entry, data=new_data
@@ -233,10 +262,16 @@ class HomeKitRoomSyncOptionsFlow(OptionsFlow):
 
         # Get current default room
         current_default = self.config_entry.data.get(CONF_DEFAULT_ROOM) or ""
+        current_allowed_areas = self.config_entry.data.get(
+            CONF_ALLOWED_AREAS, []
+        )
 
         # Build the form schema
         schema = voluptuous.Schema(
             {
+                voluptuous.Optional(
+                    CONF_ALLOWED_AREAS, default=current_allowed_areas
+                ): cv.multi_select(areas),
                 voluptuous.Optional(
                     CONF_DEFAULT_ROOM, default=current_default
                 ): voluptuous.In(room_options),
@@ -248,11 +283,14 @@ class HomeKitRoomSyncOptionsFlow(OptionsFlow):
             data_schema=schema,
             errors=errors,
             description_placeholders={
-        # Prefer the entry title (which contains the friendly name) if available
-        "bridge_name": self.config_entry.title.replace(
-            "HomeKit Bridge: ", ""
-        )
-        if self.config_entry.title
-        else self.config_entry.data[CONF_BRIDGE_NAME]
+                # Prefer the entry title (which contains the friendly name)
+                # if available
+                "bridge_name": (
+                    self.config_entry.title.replace(
+                        "HomeKit Bridge: ", ""
+                    )
+                    if self.config_entry.title
+                    else self.config_entry.data[CONF_BRIDGE_NAME]
+                )
             },
         )

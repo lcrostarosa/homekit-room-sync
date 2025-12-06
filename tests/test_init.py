@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -41,6 +42,33 @@ class TestIntegrationSetup:
 
         # Verify initial sync was called
         mock_coordinator.async_sync_rooms.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_manual_sync_service_runs_coordinator(
+        self,
+        mock_hass: MagicMock,
+        mock_config_entry: MagicMock,
+    ) -> None:
+        """Manual sync service should trigger coordinator sync."""
+        with patch(
+            "custom_components.homekit_room_sync.HomeKitRoomSyncCoordinator"
+        ) as mock_coordinator_class:
+            mock_coordinator = MagicMock()
+            mock_coordinator.async_sync_rooms = AsyncMock(return_value=True)
+            mock_coordinator_class.return_value = mock_coordinator
+
+            await async_setup_entry(mock_hass, mock_config_entry)
+
+        # Service registered once
+        assert mock_hass.services.async_register.call_count == 1
+        args, _kwargs = mock_hass.services.async_register.call_args
+        service_handler = args[2]
+
+        # Call handler with entry_id
+        call = SimpleNamespace(data={"entry_id": mock_config_entry.entry_id})
+        await service_handler(call)
+
+        mock_coordinator.async_sync_rooms.assert_awaited()
 
     @pytest.mark.asyncio
     async def test_async_unload_entry(

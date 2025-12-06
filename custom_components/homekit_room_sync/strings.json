@@ -12,7 +12,8 @@
         "title": "Default Room",
         "description": "Select a default room for entities in the '{bridge_name}' bridge that don't have an assigned area in Home Assistant. This is optional.",
         "data": {
-          "default_room": "Default Room"
+          "default_room": "Default Room",
+          "allowed_areas": "Allowed Areas (optional)"
         }
       }
     },
@@ -30,7 +31,8 @@
         "title": "HomeKit Room Sync Options",
         "description": "Configure room sync options for the '{bridge_name}' bridge.",
         "data": {
-          "default_room": "Default Room"
+          "default_room": "Default Room",
+          "allowed_areas": "Allowed Areas (optional)"
         }
       }
     }

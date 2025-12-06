@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.event import async_call_later
@@ -18,6 +19,7 @@ from .const import (
     DOMAIN,
     EVENT_AREA_REGISTRY_UPDATED,
     EVENT_ENTITY_REGISTRY_UPDATED,
+    SERVICE_SYNC,
     SYNC_DEBOUNCE_DELAY,
 )
 from .coordinator import HomeKitRoomSyncCoordinator
@@ -56,6 +58,40 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "listeners": [],
         "debounce_cancel": None,
     }
+
+    # Register manual sync service once
+    if not hass.data[DOMAIN].get("service_registered"):
+
+        async def async_handle_manual_sync(call) -> None:
+            """Manually trigger a sync for one or all bridges."""
+            entry_id = call.data.get("entry_id")
+            entry_data_map = hass.data.get(DOMAIN, {})
+
+            targets: list[HomeKitRoomSyncCoordinator] = []
+            if entry_id:
+                entry_data = entry_data_map.get(entry_id)
+                if entry_data:
+                    targets.append(entry_data["coordinator"])
+                else:
+                    _LOGGER.warning(
+                        "Manual sync requested for unknown entry_id: %s", entry_id
+                    )
+            else:
+                targets = [
+                    data["coordinator"] for data in entry_data_map.values()
+                ]
+
+            for coord in targets:
+                await coord.async_sync_rooms()
+
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_SYNC,
+            async_handle_manual_sync,
+            schema=vol.Schema({vol.Optional("entry_id"): str}),
+        )
+        hass.data[DOMAIN]["service_registered"] = True
+        _LOGGER.debug("Registered manual sync service: %s.%s", DOMAIN, SERVICE_SYNC)
 
     # Set up the debounced sync function
     @callback

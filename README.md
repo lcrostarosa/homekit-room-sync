@@ -69,6 +69,7 @@ Once configured, the integration works automatically in the background.
 |--------|-------------|
 | **HomeKit Bridge** | The HomeKit bridge to sync room assignments for |
 | **Default Room** | The room to assign to entities that don't have an area in Home Assistant (optional) |
+| **Allowed Areas** | (Optional) Limit syncing to entities in these areas; entities outside are removed from the HomeKit bridge during sync |
 
 ### Multiple Bridges
 
@@ -133,6 +134,7 @@ This integration directly modifies HomeKit Bridge storage files located in your 
 
 - Changes may take a few seconds to appear in the Apple Home app after sync
 - Some HomeKit apps may cache room assignments; force-close and reopen the app if changes don't appear
+- Exposure is controlled by the HomeKit Bridge integration (include domains/areas). Room alignment with HomeKit still requires writing `room_name` into the bridge state; HomeKit does not auto-map HA areas to rooms on its own.
 
 ## Troubleshooting
 
