@@ -9,7 +9,7 @@ repository = "https://github.com/lcrostarosa/homekit-room-sync"
 package-mode = false
 
 [tool.poetry.dependencies]
-python = "^3.13.3"
+python = "3.13.3"
 
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.8.0"
@@ -17,7 +17,7 @@ mypy = "^1.13.0"
 pytest = "^8.3.0"
 pytest-asyncio = "^0.24.0"
 voluptuous = "^0.15.0"
-homeassistant = "^2025.12.1"
+homeassistant = "2025.1.4"
 
 [build-system]
 requires = ["poetry-core"]
