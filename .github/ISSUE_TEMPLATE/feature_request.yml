@@ -1,0 +1,57 @@
+name: "Feature request"
+description: "Suggest an enhancement for HomeKit Room Sync"
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting an improvement! Please provide enough detail so we understand the value and scope.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: Briefly describe the feature or improvement you want.
+      placeholder: Add a concise overview of the idea.
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: What problem or need does this address?
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How should this work? Include examples or user flows if helpful.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: List any alternative solutions or workarounds you have tried.
+
+  - type: checkboxes
+    id: ha_deployment
+    attributes:
+      label: HA deployment method (if relevant)
+      options:
+        - label: Home Assistant OS / managed
+        - label: Home Assistant Supervised
+        - label: Home Assistant Container (Docker)
+        - label: Home Assistant Core (venv)
+        - label: Other (describe below)
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Anything else relevant
+      description: Screenshots, mockups, logs, or links that help clarify the request.
+

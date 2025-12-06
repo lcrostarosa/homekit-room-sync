@@ -315,7 +315,7 @@ class TestCoordinatorStorageOperations:
 
         result = await coordinator._read_storage_file(storage_file)
 
-        assert result is None
+        assert result == {"data": {"version": 1}}
 
     @pytest.mark.asyncio
     async def test_create_backup(

@@ -258,9 +258,9 @@ class HomeKitRoomSyncCoordinator:
             if "data" in data:
                 return data
 
-            # Missing required "data" key -> treat as invalid
-            _LOGGER.error("Storage file missing 'data' key: %s", path)
-            return None
+            # Handle flat format (no "data" wrapper)
+            _LOGGER.debug("Storage file missing 'data' key, wrapping: %s", path)
+            return {"data": data}
         except json.JSONDecodeError as err:
             _LOGGER.error("Failed to parse storage file %s: %s", path, err)
             return None
@@ -346,8 +346,8 @@ class HomeKitRoomSyncCoordinator:
         # Get all HomeKit config entries for name lookup
         hk_entries = {}
         for entry in hass.config_entries.async_entries(HOMEKIT_DOMAIN):
-            # Prefer data["name"] as it's the friendly name set in UI
-            name = entry.data.get("name") or entry.title or "Unknown Bridge"
+            # Prefer the UI title, then data["name"]
+            name = entry.title or entry.data.get("name") or "Unknown Bridge"
             hk_entries[entry.entry_id] = name
 
         for file in storage_path.iterdir():
@@ -363,12 +363,13 @@ class HomeKitRoomSyncCoordinator:
                 entry_id = file.name[prefix_len:-suffix_len]
 
                 if entry_id:
-                    # Prefer friendly name from HomeKit config entry
-                    friendly_name = hk_entries.get(entry_id)
+                    # Prefer name stored in the HomeKit state file
+                    # (reflects renames inside HomeKit UI)
+                    friendly_name = cls._extract_name_from_storage(file)
 
-                    # Fallback to name stored in the bridge state file
+                    # Fallback to HomeKit config entry name
                     if not friendly_name:
-                        friendly_name = cls._extract_name_from_storage(file)
+                        friendly_name = hk_entries.get(entry_id)
 
                     # Final fallback to ID-based name
                     if not friendly_name:
@@ -392,7 +393,33 @@ class HomeKitRoomSyncCoordinator:
             else None
         )
         if isinstance(data, dict):
-            name = data.get("name") or data.get("bridge_name")
-            if isinstance(name, str) and name.strip():
-                return name
+            config_section = (
+                data.get("config")
+                if isinstance(data.get("config"), dict)
+                else {}
+            )
+            bridge_section = (
+                data.get("bridge")
+                if isinstance(data.get("bridge"), dict)
+                else {}
+            )
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                _LOGGER.debug(
+                    "HomeKit storage structure for %s: top_keys=%s, "
+                    "data_keys=%s, config_keys=%s, bridge_keys=%s",
+                    path.name,
+                    list(content.keys()) if isinstance(content, dict) else "n/a",
+                    list(data.keys()),
+                    list(config_section.keys()),
+                    list(bridge_section.keys()),
+                )
+            name_candidates = [
+                data.get("name"),
+                data.get("bridge_name"),
+                config_section.get("name"),
+                bridge_section.get("name"),
+            ]
+            for name in name_candidates:
+                if isinstance(name, str) and name.strip():
+                    return name.strip()
         return None
