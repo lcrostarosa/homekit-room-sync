@@ -51,6 +51,9 @@ jobs:
       - name: Run Ruff formatter check
         run: poetry run ruff format --check custom_components/
 
+      - name: Run tests
+        run: poetry run pytest -q
+
   validate:
     name: Validate Integration
     runs-on: ubuntu-latest
