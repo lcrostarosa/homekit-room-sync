@@ -15,8 +15,20 @@ from homeassistant.config_entries import (
 from homeassistant.core import callback
 from homeassistant.helpers import area_registry, config_validation as cv
 
-from .bridge_manager import ManagedBridgeConfig
+try:  # Home Assistant runtime
+    from homeassistant.data_entry_flow import FlowResultType
+except Exception:  # Tests with mocks
+    from enum import Enum
+
+    class FlowResultType(Enum):
+        """Fallback FlowResultType for tests."""
+
+        FORM = "form"
+        MENU = "menu"
+
+from .bridge_manager import ManagedBridgeConfig, parse_managed_bridge_configs
 from .const import (
+    ATTR_ENTRY_ID,
     CONF_ALLOWED_AREAS,
     CONF_BRIDGE_ID,
     CONF_BRIDGE_NAME,
@@ -26,6 +38,7 @@ from .const import (
     CONF_INCLUDE_ENTITIES,
     CONF_MANAGED_BRIDGES,
     DOMAIN,
+    SERVICE_SYNC,
 )
 from .exposure import build_exposure_plan
 from .storage import async_discover_bridges
@@ -121,8 +134,12 @@ class BridgeFlowMixin:
                 self._area_name_lookup[default_room_name] = default_room_name
                 default_room_key = default_room_name
 
-        include_defaults = _list_to_text(defaults.get(CONF_INCLUDE_ENTITIES, []))
-        exclude_defaults = _list_to_text(defaults.get(CONF_EXCLUDE_ENTITIES, []))
+        include_defaults = _list_to_text(
+            defaults.get(CONF_INCLUDE_ENTITIES, []),
+        )
+        exclude_defaults = _list_to_text(
+            defaults.get(CONF_EXCLUDE_ENTITIES, []),
+        )
 
         return vol.Schema(
             {
@@ -164,6 +181,7 @@ class BridgeFlowMixin:
         default_room = None
         if default_room_key:
             default_room = self._area_name_lookup.get(default_room_key)
+            registry = None
             if default_room is None:
                 area_id = self._area_id_lookup.get(default_room_key)
                 if area_id:
@@ -172,13 +190,22 @@ class BridgeFlowMixin:
                     if area_entry and area_entry.name:
                         default_room = str(area_entry.name)
             if default_room is None:
+                registry = registry or area_registry.async_get(self.hass)
+                area_entry = registry.async_get_area(default_room_key)
+                if area_entry and area_entry.name:
+                    default_room = str(area_entry.name)
+            if default_room is None:
                 default_room = default_room_key
 
-        include_entities = _parse_entity_text(user_input.get(CONF_INCLUDE_ENTITIES))
+        include_entities = _parse_entity_text(
+            user_input.get(CONF_INCLUDE_ENTITIES),
+        )
         include_set = set(include_entities)
         exclude_entities = [
             entity
-            for entity in _parse_entity_text(user_input.get(CONF_EXCLUDE_ENTITIES))
+            for entity in _parse_entity_text(
+                user_input.get(CONF_EXCLUDE_ENTITIES)
+            )
             if entity not in include_set
         ]
 
@@ -206,7 +233,11 @@ class BridgeFlowMixin:
         defaults = self._existing_bridge_map.get(bridge_id, {})
 
         if user_input is not None:
-            payload = self._serialize_bridge_input(bridge_id, friendly_name, user_input)
+            payload = self._serialize_bridge_input(
+                bridge_id,
+                friendly_name,
+                user_input,
+            )
             self._bridge_payloads.append(payload)
             self._bridge_form_index += 1
 
@@ -226,7 +257,7 @@ class BridgeFlowMixin:
             },
         )
 
-    async def _finish_bridge_flow(self) -> ConfigFlowResult:  # pragma: no cover - overridden
+    async def _finish_bridge_flow(self) -> ConfigFlowResult:
         raise NotImplementedError
 
     def _log_exposure_preview(self, payloads: list[dict[str, Any]]) -> None:
@@ -329,12 +360,18 @@ class HomeKitRoomSyncConfigFlow(
     ) -> ConfigFlowResult:
         return await self._async_handle_bridge_step("bridge", user_input)
 
+    @staticmethod
+    def is_matching(*_: Any, **__: Any) -> bool:
+        """Return whether this flow matches a discovery (unused)."""
+        return False
+
     async def _finish_bridge_flow(self) -> ConfigFlowResult:
         if not self._bridge_payloads:
             return self.async_abort(reason="no_bridges")
 
         if len(self._bridge_payloads) == 1:
-            title = f"HomeKit Bridge: {self._bridge_payloads[0][CONF_BRIDGE_TITLE]}"
+            bridge_title = self._bridge_payloads[0][CONF_BRIDGE_TITLE]
+            title = f"HomeKit Bridge: {bridge_title}"
         else:
             title = f"HomeKit Room Sync ({len(self._bridge_payloads)} bridges)"
 
@@ -352,7 +389,51 @@ class HomeKitRoomSyncOptionsFlow(BridgeFlowMixin, OptionsFlow):
         OptionsFlow.__init__(self, config_entry)
         BridgeFlowMixin.__init__(self)
 
+    def _show_menu(self, **kwargs: Any) -> ConfigFlowResult:
+        """Show a menu, using HA's helper when available."""
+        try:
+            return super().async_show_menu(**kwargs)  # type: ignore[attr-defined]
+        except AttributeError:
+            return {
+                "type": FlowResultType.MENU,
+                "step_id": kwargs.get("step_id", "init"),
+                "menu_options": kwargs.get("menu_options", []),
+                "description_placeholders": kwargs.get(
+                    "description_placeholders", {}
+                ),
+            }
+
+    def async_show_menu(self, *args: Any, **kwargs: Any) -> ConfigFlowResult:
+        """Return a menu result (compat shim for tests and HA)."""
+        step_id = kwargs.get("step_id") or (args[0] if args else "init")
+        menu_options = kwargs.get("menu_options") or (
+            args[1] if len(args) > 1 else []
+        )
+        description_placeholders = kwargs.get("description_placeholders") or {}
+        return {
+            "type": FlowResultType.MENU,
+            "step_id": step_id,
+            "menu_options": menu_options,
+            "description_placeholders": description_placeholders,
+        }
+
     async def async_step_init(
+        self,
+        user_input: dict[str, Any] | None = None,
+    ) -> ConfigFlowResult:
+        if user_input is not None:
+            next_step = user_input.get("next_step_id")
+            if next_step == "configure":
+                return await self.async_step_configure()
+            if next_step == "resync":
+                return await self.async_step_resync()
+
+        return self._show_menu(
+            step_id="init",
+            menu_options=["configure", "resync"],
+        )
+
+    async def async_step_configure(
         self,
         user_input: dict[str, Any] | None = None,
     ) -> ConfigFlowResult:
@@ -423,7 +504,7 @@ class HomeKitRoomSyncOptionsFlow(BridgeFlowMixin, OptionsFlow):
             }
         )
         return self.async_show_form(
-            step_id="init",
+            step_id="configure",
             data_schema=schema,
             errors=errors,
             description_placeholders={
@@ -446,5 +527,52 @@ class HomeKitRoomSyncOptionsFlow(BridgeFlowMixin, OptionsFlow):
         self.hass.config_entries.async_update_entry(
             self.config_entry,
             data=new_data,
+        )
+        return self.async_create_entry(title="", data={})
+
+    async def async_step_resync(
+        self,
+        user_input: dict[str, Any] | None = None,
+    ) -> ConfigFlowResult:
+        bridge_configs = parse_managed_bridge_configs(self.config_entry)
+        if not bridge_configs:
+            return self.async_abort(reason="no_bridges")
+
+        if user_input is None:
+            summaries: list[str] = []
+            for config in bridge_configs:
+                plan = build_exposure_plan(self.hass, config)
+                preview = ", ".join(plan.include_entities[:5])
+                if len(plan.include_entities) > 5:
+                    preview = f"{preview}, …"
+                summaries.append(
+                    f"{config.title}: {len(plan.include_entities)} entities"
+                    f"{f' ({preview})' if preview else ''}"
+                )
+
+            summary = (
+                "\n".join(summaries) if summaries else "No entities to expose."
+            )
+
+            return self.async_show_form(
+                step_id="resync",
+                data_schema=vol.Schema({}),
+                description_placeholders={
+                    "summary": summary,
+                },
+            )
+
+        if domain_data := self.hass.data.get(DOMAIN):
+            if entry_data := domain_data.get(self.config_entry.entry_id):
+                manager = entry_data.get("manager")
+                if manager is not None:
+                    await manager.async_sync()
+                    return self.async_create_entry(title="", data={})
+
+        await self.hass.services.async_call(
+            DOMAIN,
+            SERVICE_SYNC,
+            {ATTR_ENTRY_ID: self.config_entry.entry_id},
+            blocking=True,
         )
         return self.async_create_entry(title="", data={})

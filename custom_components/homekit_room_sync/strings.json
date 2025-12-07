@@ -29,8 +29,14 @@
     }
   },
   "options": {
-    "step": {
+    "menu": {
       "init": {
+        "configure": "Configure managed bridges",
+        "resync": "Force a sync now"
+      }
+    },
+    "step": {
+      "configure": {
         "title": "Select Bridges to Manage",
         "description": "Update which HomeKit Bridges this entry manages. Existing bridge-specific filters will be requested next.",
         "data": {
@@ -46,6 +52,10 @@
           "include_entities": "Include entity overrides",
           "exclude_entities": "Exclude entity overrides"
         }
+      },
+      "resync": {
+        "title": "Force a HomeKit sync",
+        "description": "Review what will be exposed, then click submit to sync. {summary}"
       }
     }
   }

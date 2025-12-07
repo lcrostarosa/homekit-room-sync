@@ -12,6 +12,7 @@ from custom_components.homekit_room_sync.config_flow import (
     HomeKitRoomSyncOptionsFlow,
 )
 from custom_components.homekit_room_sync.const import (
+    ATTR_ENTRY_ID,
     CONF_ALLOWED_AREAS,
     CONF_BRIDGE_ID,
     CONF_BRIDGE_TITLE,
@@ -19,6 +20,8 @@ from custom_components.homekit_room_sync.const import (
     CONF_EXCLUDE_ENTITIES,
     CONF_INCLUDE_ENTITIES,
     CONF_MANAGED_BRIDGES,
+    DOMAIN,
+    SERVICE_SYNC,
 )
 
 
@@ -145,11 +148,15 @@ async def test_options_flow_updates_entry(
     flow.hass.config_entries.async_entries = MagicMock(return_value=[mock_config_entry])
     flow.hass.config_entries.async_update_entry = MagicMock()
 
+    menu = await flow.async_step_init()
+    assert menu["type"].value if hasattr(menu["type"], "value") else menu["type"] == "menu"
+
     with patch(
         "custom_components.homekit_room_sync.config_flow.async_discover_bridges",
         AsyncMock(return_value={"test_bridge": "Test Bridge"}),
     ):
-        await flow.async_step_init({CONF_MANAGED_BRIDGES: ["test_bridge"]})
+        await flow.async_step_init({"next_step_id": "configure"})
+        await flow.async_step_configure({CONF_MANAGED_BRIDGES: ["test_bridge"]})
 
     with patch(
         "custom_components.homekit_room_sync.config_flow.area_registry.async_get",
@@ -170,4 +177,34 @@ async def test_options_flow_updates_entry(
     bridge_data = updated_data[CONF_MANAGED_BRIDGES][0]
     assert bridge_data[CONF_ALLOWED_AREAS] == ["area_bedroom"]
     assert bridge_data[CONF_DEFAULT_ROOM] is None or bridge_data[CONF_DEFAULT_ROOM] == ""
+
+
+@pytest.mark.asyncio
+async def test_options_flow_resync_triggers_service(mock_config_entry: MagicMock) -> None:
+    """Options flow resync action should trigger manual sync service."""
+    flow = HomeKitRoomSyncOptionsFlow(mock_config_entry)
+    flow.hass = MagicMock()
+    flow.hass.config_entries = MagicMock()
+    flow.hass.data = {}
+    flow.hass.services = MagicMock()
+    flow.hass.services.async_call = AsyncMock()
+
+    await flow.async_step_init()
+
+    with patch(
+        "custom_components.homekit_room_sync.config_flow.build_exposure_plan",
+        return_value=SimpleNamespace(include_entities=["light.test"]),
+    ):
+        resync_form = await flow.async_step_init({"next_step_id": "resync"})
+
+    assert resync_form["type"].value if hasattr(resync_form["type"], "value") else resync_form["type"] == "form"
+
+    await flow.async_step_resync({})
+
+    flow.hass.services.async_call.assert_awaited_once_with(
+        DOMAIN,
+        SERVICE_SYNC,
+        {ATTR_ENTRY_ID: mock_config_entry.entry_id},
+        blocking=True,
+    )
 
