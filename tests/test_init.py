@@ -25,11 +25,12 @@ class TestIntegrationSetup:
     ) -> None:
         """Test successful setup of config entry."""
         with patch(
-            "custom_components.homekit_room_sync.HomeKitRoomSyncCoordinator"
-        ) as mock_coordinator_class:
-            mock_coordinator = MagicMock()
-            mock_coordinator.async_sync_rooms = AsyncMock(return_value=True)
-            mock_coordinator_class.return_value = mock_coordinator
+            "custom_components.homekit_room_sync.HomeKitBridgeManager"
+        ) as mock_manager_class:
+            mock_manager = MagicMock()
+            mock_manager.async_sync = AsyncMock(return_value=True)
+            mock_manager.bridge_ids = ["test_bridge"]
+            mock_manager_class.return_value = mock_manager
 
             result = await async_setup_entry(mock_hass, mock_config_entry)
 
@@ -38,10 +39,10 @@ class TestIntegrationSetup:
         assert mock_config_entry.entry_id in mock_hass.data[DOMAIN]
 
         # Verify event listeners were registered
-        assert mock_hass.bus.async_listen.call_count == 2
+        assert mock_hass.bus.async_listen.call_count == 3
 
         # Verify initial sync was called
-        mock_coordinator.async_sync_rooms.assert_called_once()
+        mock_manager.async_sync.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_manual_sync_service_runs_coordinator(
@@ -51,11 +52,12 @@ class TestIntegrationSetup:
     ) -> None:
         """Manual sync service should trigger coordinator sync."""
         with patch(
-            "custom_components.homekit_room_sync.HomeKitRoomSyncCoordinator"
-        ) as mock_coordinator_class:
-            mock_coordinator = MagicMock()
-            mock_coordinator.async_sync_rooms = AsyncMock(return_value=True)
-            mock_coordinator_class.return_value = mock_coordinator
+            "custom_components.homekit_room_sync.HomeKitBridgeManager"
+        ) as mock_manager_class:
+            mock_manager = MagicMock()
+            mock_manager.async_sync = AsyncMock(return_value=True)
+            mock_manager.bridge_ids = ["test_bridge"]
+            mock_manager_class.return_value = mock_manager
 
             await async_setup_entry(mock_hass, mock_config_entry)
 
@@ -68,7 +70,13 @@ class TestIntegrationSetup:
         call = SimpleNamespace(data={"entry_id": mock_config_entry.entry_id})
         await service_handler(call)
 
-        mock_coordinator.async_sync_rooms.assert_awaited()
+        mock_manager.async_sync.assert_awaited()
+
+        # Call handler targeting bridge id
+        mock_manager.async_sync.reset_mock()
+        call = SimpleNamespace(data={"bridge_id": "test_bridge"})
+        await service_handler(call)
+        mock_manager.async_sync.assert_awaited()
 
     @pytest.mark.asyncio
     async def test_async_unload_entry(
@@ -79,9 +87,11 @@ class TestIntegrationSetup:
         """Test successful unload of config entry."""
         # Set up the data structure as if setup was called
         mock_unsub = MagicMock()
+        mock_manager = MagicMock()
+        mock_manager.async_shutdown = AsyncMock()
         mock_hass.data[DOMAIN] = {
             mock_config_entry.entry_id: {
-                "coordinator": MagicMock(),
+                "manager": mock_manager,
                 "listeners": [mock_unsub, mock_unsub],
                 "debounce_cancel": None,
             }
@@ -91,6 +101,7 @@ class TestIntegrationSetup:
 
         assert result is True
         assert mock_config_entry.entry_id not in mock_hass.data[DOMAIN]
+        mock_manager.async_shutdown.assert_awaited_once()
 
         # Verify listeners were removed
         assert mock_unsub.call_count == 2
@@ -103,9 +114,11 @@ class TestIntegrationSetup:
     ) -> None:
         """Test unload cancels pending sync."""
         mock_cancel = MagicMock()
+        mock_manager = MagicMock()
+        mock_manager.async_shutdown = AsyncMock()
         mock_hass.data[DOMAIN] = {
             mock_config_entry.entry_id: {
-                "coordinator": MagicMock(),
+                "manager": mock_manager,
                 "listeners": [],
                 "debounce_cancel": mock_cancel,
             }
@@ -115,6 +128,7 @@ class TestIntegrationSetup:
 
         assert result is True
         mock_cancel.assert_called_once()
+        mock_manager.async_shutdown.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_async_unload_entry_not_loaded(
@@ -142,15 +156,15 @@ class TestEventHandling:
         """Test that sync is debounced on multiple events."""
         with (
             patch(
-                "custom_components.homekit_room_sync.HomeKitRoomSyncCoordinator"
-            ) as mock_coordinator_class,
+                "custom_components.homekit_room_sync.HomeKitBridgeManager"
+            ) as mock_manager_class,
             patch(
                 "custom_components.homekit_room_sync.async_call_later"
             ) as mock_call_later,
         ):
-            mock_coordinator = MagicMock()
-            mock_coordinator.async_sync_rooms = AsyncMock(return_value=True)
-            mock_coordinator_class.return_value = mock_coordinator
+            mock_manager = MagicMock()
+            mock_manager.async_sync = AsyncMock(return_value=True)
+            mock_manager_class.return_value = mock_manager
 
             # Mock async_call_later to return a cancel function
             mock_cancel = MagicMock()
@@ -160,7 +174,7 @@ class TestEventHandling:
 
             # Get the schedule_sync callback
             calls = mock_hass.bus.async_listen.call_args_list
-            assert len(calls) == 2
+            assert len(calls) == 3
 
             # Extract the callback from the first listener
             schedule_sync = calls[0][0][1]

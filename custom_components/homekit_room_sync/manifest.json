@@ -1,7 +1,7 @@
 {
   "domain": "homekit_room_sync",
   "name": "HomeKit Room Sync",
-  "version": "0.0.1",
+  "version": "0.2.0",
   "codeowners": ["@lcrostarosa"],
   "config_flow": true,
   "dependencies": ["homekit"],

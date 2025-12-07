@@ -1,0 +1,17 @@
+sync:
+  name: Force sync
+  description: Trigger HomeKit Room Sync for one entry or a specific bridge.
+  fields:
+    entry_id:
+      name: Config entry ID
+      description: Optional config entry ID to target a specific HomeKit Room Sync entry.
+      required: false
+      selector:
+        text:
+    bridge_id:
+      name: HomeKit bridge ID
+      description: Optional bridge ID to sync a single HomeKit bridge managed by the entry.
+      required: false
+      selector:
+        text:
+

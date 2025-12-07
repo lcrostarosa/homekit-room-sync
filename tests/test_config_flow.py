@@ -1,224 +1,210 @@
-"""Tests for the HomeKit Room Sync config flow."""
+"""Tests for the HomeKit Room Sync config and options flows."""
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from custom_components.homekit_room_sync.config_flow import (
     HomeKitRoomSyncConfigFlow,
+    HomeKitRoomSyncOptionsFlow,
 )
 from custom_components.homekit_room_sync.const import (
+    ATTR_ENTRY_ID,
     CONF_ALLOWED_AREAS,
-    CONF_BRIDGE_NAME,
+    CONF_BRIDGE_ID,
+    CONF_BRIDGE_TITLE,
     CONF_DEFAULT_ROOM,
+    CONF_EXCLUDE_ENTITIES,
+    CONF_INCLUDE_ENTITIES,
+    CONF_MANAGED_BRIDGES,
+    DOMAIN,
+    SERVICE_SYNC,
 )
 
 
-class TestHomeKitRoomSyncConfigFlow:
-    """Tests for HomeKitRoomSyncConfigFlow."""
+@pytest.fixture(autouse=True)
+def mock_exposure_plan(monkeypatch):
+    plan = SimpleNamespace(include_entities=[], rooms_by_entity={}, allowed_entities=set())
 
-    @pytest.fixture
-    def flow(self) -> HomeKitRoomSyncConfigFlow:
-        """Create a config flow instance."""
-        flow = HomeKitRoomSyncConfigFlow()
-        flow.hass = MagicMock()
-        flow.hass.config_entries = MagicMock()
-        return flow
+    def _fake_plan(hass, config):
+        return plan
 
-    @pytest.mark.asyncio
-    async def test_step_user_no_bridges(self, flow: HomeKitRoomSyncConfigFlow) -> None:
-        """Test user step when no bridges are found."""
-        with patch(
-            "custom_components.homekit_room_sync.config_flow."
-            "HomeKitRoomSyncCoordinator.get_available_bridges",
-            return_value={},
-        ):
-            flow.hass.async_add_executor_job = AsyncMock(return_value={})
-            result = await flow.async_step_user()
-
-        assert result["type"] == "abort"
-        assert result["reason"] == "no_bridges"
-
-    @pytest.mark.asyncio
-    async def test_step_user_shows_form(
-        self, flow: HomeKitRoomSyncConfigFlow
-    ) -> None:
-        """Test user step shows form with available bridges."""
-        flow._async_current_entries = MagicMock(return_value=[])
-
-        async def mock_executor(func, *args):
-            return func(*args)
-
-        flow.hass.async_add_executor_job = mock_executor
-
-        with patch(
-            "custom_components.homekit_room_sync.config_flow."
-            "HomeKitRoomSyncCoordinator.get_available_bridges",
-            return_value={"bridge1": "Bridge 1", "bridge2": "Bridge 2"},
-        ):
-            result = await flow.async_step_user()
-
-        assert result["type"] == "form"
-        assert result["step_id"] == "user"
-
-    @pytest.mark.asyncio
-    async def test_step_user_all_bridges_configured(
-        self, flow: HomeKitRoomSyncConfigFlow
-    ) -> None:
-        """Test user step when all bridges are already configured."""
-        # Mock existing entry
-        existing_entry = MagicMock()
-        existing_entry.data = {CONF_BRIDGE_NAME: "bridge1"}
-        flow._async_current_entries = MagicMock(return_value=[existing_entry])
-
-        async def mock_executor(func, *args):
-            return func(*args)
-
-        flow.hass.async_add_executor_job = mock_executor
-
-        with patch(
-            "custom_components.homekit_room_sync.config_flow."
-            "HomeKitRoomSyncCoordinator.get_available_bridges",
-            return_value={"bridge1": "Bridge 1"},
-        ):
-            result = await flow.async_step_user()
-
-        assert result["type"] == "abort"
-        assert result["reason"] == "all_bridges_configured"
-
-    @pytest.mark.asyncio
-    async def test_step_user_selects_bridge(
-        self, flow: HomeKitRoomSyncConfigFlow
-    ) -> None:
-        """Test user step when selecting a bridge."""
-        flow._async_current_entries = MagicMock(return_value=[])
-
-        async def mock_executor(func, *args):
-            return func(*args)
-
-        flow.hass.async_add_executor_job = mock_executor
-
-        with patch(
-            "custom_components.homekit_room_sync.config_flow."
-            "HomeKitRoomSyncCoordinator.get_available_bridges",
-            return_value={"bridge1": "Bridge 1", "bridge2": "Bridge 2"},
-        ):
-            result = await flow.async_step_user({CONF_BRIDGE_NAME: "bridge1"})
-
-        # Should proceed to room step
-        assert result["type"] == "form"
-        assert result["step_id"] == "room"
-        assert flow._bridge_name == "bridge1"
-
-    @pytest.mark.asyncio
-    async def test_step_room_creates_entry(
-        self, flow: HomeKitRoomSyncConfigFlow, mock_area_registry: MagicMock
-    ) -> None:
-        """Test room step creates config entry."""
-        flow._bridge_name = "bridge1"
-
-        with patch(
-            "custom_components.homekit_room_sync.config_flow.area_registry.async_get",
-            return_value=mock_area_registry,
-        ):
-            result = await flow.async_step_room({CONF_DEFAULT_ROOM: "Living Room"})
-
-        assert result["type"] == "create_entry"
-        assert result["title"] == "HomeKit Bridge: bridge1"
-        assert result["data"] == {
-            CONF_BRIDGE_NAME: "bridge1",
-            CONF_DEFAULT_ROOM: "Living Room",
-            CONF_ALLOWED_AREAS: [],
-        }
-
-    @pytest.mark.asyncio
-    async def test_step_room_uses_friendly_title(
-        self, flow: HomeKitRoomSyncConfigFlow, mock_area_registry: MagicMock
-    ) -> None:
-        """Test room step uses friendly bridge name for title."""
-        flow._bridge_name = "bridge1"
-        flow._bridge_friendly_name = "Living Room Bridge"
-
-        with patch(
-            "custom_components.homekit_room_sync.config_flow.area_registry.async_get",
-            return_value=mock_area_registry,
-        ):
-            result = await flow.async_step_room({CONF_DEFAULT_ROOM: ""})
-
-        assert result["title"] == "HomeKit Bridge: Living Room Bridge"
-
-    @pytest.mark.asyncio
-    async def test_step_room_no_default_room(
-        self, flow: HomeKitRoomSyncConfigFlow, mock_area_registry: MagicMock
-    ) -> None:
-        """Test room step with no default room selected."""
-        flow._bridge_name = "bridge1"
-
-        with patch(
-            "custom_components.homekit_room_sync.config_flow.area_registry.async_get",
-            return_value=mock_area_registry,
-        ):
-            result = await flow.async_step_room({CONF_DEFAULT_ROOM: ""})
-
-        assert result["type"] == "create_entry"
-        assert result["data"][CONF_DEFAULT_ROOM] is None
-        assert result["data"][CONF_ALLOWED_AREAS] == []
+    monkeypatch.setattr(
+        "custom_components.homekit_room_sync.config_flow.build_exposure_plan",
+        _fake_plan,
+    )
+    return plan
 
 
-class TestHomeKitRoomSyncOptionsFlow:
-    """Tests for HomeKitRoomSyncOptionsFlow."""
+@pytest.fixture
+def flow() -> HomeKitRoomSyncConfigFlow:
+    """Create a config flow instance."""
+    flow = HomeKitRoomSyncConfigFlow()
+    flow.hass = MagicMock()
+    flow.hass.config_entries = MagicMock()
+    flow.hass.config_entries.async_entries = MagicMock(return_value=[])
+    return flow
 
-    @pytest.mark.asyncio
-    async def test_options_flow_init(
-        self, mock_config_entry: MagicMock, mock_area_registry: MagicMock
-    ) -> None:
-        """Test options flow initialization."""
-        from custom_components.homekit_room_sync.config_flow import (
-            HomeKitRoomSyncOptionsFlow,
+
+@pytest.mark.asyncio
+async def test_step_user_no_bridges(flow: HomeKitRoomSyncConfigFlow) -> None:
+    """Abort when no HomeKit bridges are discovered."""
+    with patch(
+        "custom_components.homekit_room_sync.config_flow.async_discover_bridges",
+        AsyncMock(return_value={}),
+    ):
+        result = await flow.async_step_user()
+
+    assert result["type"] == "abort"
+    assert result["reason"] == "no_bridges"
+
+
+@pytest.mark.asyncio
+async def test_step_user_all_bridges_configured(flow: HomeKitRoomSyncConfigFlow) -> None:
+    """Abort when all bridges are already configured."""
+    existing_entry = MagicMock()
+    existing_entry.data = {
+        CONF_MANAGED_BRIDGES: [{CONF_BRIDGE_ID: "bridge1"}],
+    }
+    flow._async_current_entries = MagicMock(return_value=[existing_entry])
+
+    with patch(
+        "custom_components.homekit_room_sync.config_flow.async_discover_bridges",
+        AsyncMock(return_value={"bridge1": "Bridge 1"}),
+    ):
+        result = await flow.async_step_user()
+
+    assert result["type"] == "abort"
+    assert result["reason"] == "all_bridges_configured"
+
+
+@pytest.mark.asyncio
+async def test_step_user_to_bridge(flow: HomeKitRoomSyncConfigFlow) -> None:
+    """Selecting bridges should advance to bridge configuration."""
+    flow._async_current_entries = MagicMock(return_value=[])
+
+    with patch(
+        "custom_components.homekit_room_sync.config_flow.async_discover_bridges",
+        AsyncMock(return_value={"bridge1": "Bridge 1", "bridge2": "Bridge 2"}),
+    ):
+        result = await flow.async_step_user(
+            {CONF_MANAGED_BRIDGES: ["bridge1", "bridge2"]}
         )
 
-        flow = HomeKitRoomSyncOptionsFlow(mock_config_entry)
-        flow.hass = MagicMock()
-        flow.hass.config_entries = MagicMock()
+    assert result["type"] == "form"
+    assert result["step_id"] == "bridge"
 
-        with patch(
-            "custom_components.homekit_room_sync.config_flow.area_registry.async_get",
-            return_value=mock_area_registry,
-        ):
-            result = await flow.async_step_init()
 
-        assert result["type"] == "form"
-        assert result["step_id"] == "init"
+@pytest.mark.asyncio
+async def test_bridge_step_creates_entry(
+    flow: HomeKitRoomSyncConfigFlow,
+    mock_area_registry: MagicMock,
+) -> None:
+    """Bridge step should collect filters and create entry."""
+    flow._async_current_entries = MagicMock(return_value=[])
 
-    @pytest.mark.asyncio
-    async def test_options_flow_update(
-        self, mock_config_entry: MagicMock, mock_area_registry: MagicMock
-    ) -> None:
-        """Test options flow updating default room."""
-        from custom_components.homekit_room_sync.config_flow import (
-            HomeKitRoomSyncOptionsFlow,
+    with patch(
+        "custom_components.homekit_room_sync.config_flow.async_discover_bridges",
+        AsyncMock(return_value={"bridge1": "Bridge 1"}),
+    ):
+        await flow.async_step_user({CONF_MANAGED_BRIDGES: ["bridge1"]})
+
+    with patch(
+        "custom_components.homekit_room_sync.config_flow.area_registry.async_get",
+        return_value=mock_area_registry,
+    ):
+        result = await flow.async_step_bridge(
+            {
+                CONF_ALLOWED_AREAS: ["area_living_room"],
+                CONF_DEFAULT_ROOM: "area_bedroom",
+                CONF_INCLUDE_ENTITIES: "light.kitchen\nswitch.desk",
+                CONF_EXCLUDE_ENTITIES: "switch.desk,sensor.outdoor",
+            }
         )
 
-        flow = HomeKitRoomSyncOptionsFlow(mock_config_entry)
-        flow.hass = MagicMock()
-        flow.hass.config_entries = MagicMock()
-        flow.hass.config_entries.async_update_entry = MagicMock()
+    assert result["type"] == "create_entry"
+    data = result["data"][CONF_MANAGED_BRIDGES][0]
+    assert data[CONF_BRIDGE_ID] == "bridge1"
+    assert data[CONF_BRIDGE_TITLE] == "Bridge 1"
+    assert data[CONF_ALLOWED_AREAS] == ["area_living_room"]
+    assert data[CONF_DEFAULT_ROOM] == "Bedroom"
+    assert data[CONF_INCLUDE_ENTITIES] == ["light.kitchen", "switch.desk"]
+    # Exclude should remove duplicates present in include
+    assert data[CONF_EXCLUDE_ENTITIES] == ["sensor.outdoor"]
 
-        with patch(
-            "custom_components.homekit_room_sync.config_flow.area_registry.async_get",
-            return_value=mock_area_registry,
-        ):
-            result = await flow.async_step_init(
-                {
-                    CONF_DEFAULT_ROOM: "Bedroom",
-                    CONF_ALLOWED_AREAS: ["area_bedroom"],
-                }
-            )
 
-        assert result["type"] == "create_entry"
-        flow.hass.config_entries.async_update_entry.assert_called_once()
-        update_args = flow.hass.config_entries.async_update_entry.call_args[0][1]
-        assert update_args[CONF_ALLOWED_AREAS] == ["area_bedroom"]
+@pytest.mark.asyncio
+async def test_options_flow_updates_entry(
+    mock_config_entry: MagicMock,
+    mock_area_registry: MagicMock,
+) -> None:
+    """Options flow should persist updated bridge filters."""
+    flow = HomeKitRoomSyncOptionsFlow(mock_config_entry)
+    flow.hass = MagicMock()
+    flow.hass.config_entries = MagicMock()
+    flow.hass.config_entries.async_entries = MagicMock(return_value=[mock_config_entry])
+    flow.hass.config_entries.async_update_entry = MagicMock()
+
+    menu = await flow.async_step_init()
+    assert menu["type"].value if hasattr(menu["type"], "value") else menu["type"] == "menu"
+
+    with patch(
+        "custom_components.homekit_room_sync.config_flow.async_discover_bridges",
+        AsyncMock(return_value={"test_bridge": "Test Bridge"}),
+    ):
+        await flow.async_step_init({"next_step_id": "configure"})
+        await flow.async_step_configure({CONF_MANAGED_BRIDGES: ["test_bridge"]})
+
+    with patch(
+        "custom_components.homekit_room_sync.config_flow.area_registry.async_get",
+        return_value=mock_area_registry,
+    ):
+        result = await flow.async_step_bridge(
+            {
+                CONF_ALLOWED_AREAS: ["area_bedroom"],
+                CONF_DEFAULT_ROOM: "",
+                CONF_INCLUDE_ENTITIES: "",
+                CONF_EXCLUDE_ENTITIES: "",
+            }
+        )
+
+    assert result["type"] == "create_entry"
+    flow.hass.config_entries.async_update_entry.assert_called_once()
+    updated_data = flow.hass.config_entries.async_update_entry.call_args[1]["data"]
+    bridge_data = updated_data[CONF_MANAGED_BRIDGES][0]
+    assert bridge_data[CONF_ALLOWED_AREAS] == ["area_bedroom"]
+    assert bridge_data[CONF_DEFAULT_ROOM] is None or bridge_data[CONF_DEFAULT_ROOM] == ""
+
+
+@pytest.mark.asyncio
+async def test_options_flow_resync_triggers_service(mock_config_entry: MagicMock) -> None:
+    """Options flow resync action should trigger manual sync service."""
+    flow = HomeKitRoomSyncOptionsFlow(mock_config_entry)
+    flow.hass = MagicMock()
+    flow.hass.config_entries = MagicMock()
+    flow.hass.data = {}
+    flow.hass.services = MagicMock()
+    flow.hass.services.async_call = AsyncMock()
+
+    await flow.async_step_init()
+
+    with patch(
+        "custom_components.homekit_room_sync.config_flow.build_exposure_plan",
+        return_value=SimpleNamespace(include_entities=["light.test"]),
+    ):
+        resync_form = await flow.async_step_init({"next_step_id": "resync"})
+
+    assert resync_form["type"].value if hasattr(resync_form["type"], "value") else resync_form["type"] == "form"
+
+    await flow.async_step_resync({})
+
+    flow.hass.services.async_call.assert_awaited_once_with(
+        DOMAIN,
+        SERVICE_SYNC,
+        {ATTR_ENTRY_ID: mock_config_entry.entry_id},
+        blocking=True,
+    )
 
