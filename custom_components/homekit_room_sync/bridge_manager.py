@@ -21,7 +21,6 @@ from .const import (
     CONF_MANAGED_BRIDGES,
 )
 from .coordinator import HomeKitRoomSyncCoordinator
-from .storage import HomeKitStorageClient
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -125,13 +124,11 @@ class HomeKitBridgeManager:
         """Initialize the manager."""
         self._hass = hass
         self._entry = entry
-        self._storage = HomeKitStorageClient(hass)
         self._coordinators: dict[str, HomeKitRoomSyncCoordinator] = {
             cfg.bridge_id: HomeKitRoomSyncCoordinator(
                 hass,
                 entry,
                 cfg,
-                self._storage,
             )
             for cfg in bridge_configs
         }

@@ -29,9 +29,8 @@ EVENT_DEVICE_REGISTRY_UPDATED: Final = "device_registry_updated"
 # Debounce delay in seconds
 SYNC_DEBOUNCE_DELAY: Final = 0.5
 
-# HomeKit service
+# HomeKit domain
 HOMEKIT_DOMAIN: Final = "homekit"
-SERVICE_RELOAD: Final = "reload"
 
 # Services
 SERVICE_SYNC: Final = "sync"
@@ -39,7 +38,3 @@ SERVICE_SYNC: Final = "sync"
 # Service attributes
 ATTR_ENTRY_ID: Final = "entry_id"
 ATTR_BRIDGE_ID: Final = "bridge_id"
-# Storage keys used in HomeKit state files
-STORAGE_KEY_ACCESSORIES: Final = "accessories"
-STORAGE_KEY_ENTITY_ID: Final = "entity_id"
-STORAGE_KEY_ROOM_NAME: Final = "room_name"

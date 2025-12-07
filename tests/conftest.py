@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import json
 import sys
-from pathlib import Path
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -41,7 +38,19 @@ from custom_components.homekit_room_sync.const import (
 
 
 @pytest.fixture
-def mock_hass() -> MagicMock:
+def mock_homekit_entry() -> MagicMock:
+    """Create a mock HomeKit config entry."""
+    entry = MagicMock()
+    entry.entry_id = "test_bridge"
+    entry.domain = "homekit"
+    entry.title = "Test HomeKit Bridge"
+    entry.data = {"filter": {}, "entity_config": {}}
+    entry.options = {}
+    return entry
+
+
+@pytest.fixture
+def mock_hass(mock_homekit_entry: MagicMock) -> MagicMock:
     """Create a mock Home Assistant instance."""
     hass = MagicMock()
     hass.config.path = MagicMock(return_value="/config")
@@ -53,6 +62,14 @@ def mock_hass() -> MagicMock:
     hass.services.async_register = MagicMock()
     hass.config_entries = MagicMock()
     hass.config_entries.async_reload = AsyncMock()
+    hass.config_entries.async_get_entry = MagicMock(return_value=mock_homekit_entry)
+
+    def _update_entry(entry, data=None, options=None):
+        if entry is mock_homekit_entry and data is not None:
+            mock_homekit_entry.data = data
+
+    hass.config_entries.async_update_entry = MagicMock(side_effect=_update_entry)
+    hass.config_entries.async_entries = MagicMock(return_value=[mock_homekit_entry])
 
     # Mock async_add_executor_job to run synchronously
     async def mock_executor_job(func, *args, **kwargs):
@@ -91,27 +108,32 @@ def mock_entity_registry() -> MagicMock:
     """Create a mock entity registry."""
     registry = MagicMock()
 
-    # Create mock entity entries
     entity_with_area = MagicMock()
+    entity_with_area.entity_id = "light.living_room"
     entity_with_area.area_id = "area_living_room"
     entity_with_area.device_id = None
 
     entity_with_device = MagicMock()
+    entity_with_device.entity_id = "switch.bedroom"
     entity_with_device.area_id = None
     entity_with_device.device_id = "device_1"
 
     entity_without_area = MagicMock()
+    entity_without_area.entity_id = "sensor.unknown"
     entity_without_area.area_id = None
     entity_without_area.device_id = None
 
-    entity_map = {
-        "light.living_room": entity_with_area,
-        "switch.bedroom": entity_with_device,
-        "sensor.unknown": entity_without_area,
+    registry.entities = {
+        entry.entity_id: entry
+        for entry in (
+            entity_with_area,
+            entity_with_device,
+            entity_without_area,
+        )
     }
 
     def get_entity(entity_id: str):
-        return entity_map.get(entity_id)
+        return registry.entities.get(entity_id)
 
     registry.async_get = get_entity
     return registry
@@ -162,44 +184,3 @@ def mock_area_registry() -> MagicMock:
     return registry
 
 
-@pytest.fixture
-def sample_homekit_storage() -> dict[str, Any]:
-    """Create sample HomeKit storage data."""
-    return {
-        "version": 1,
-        "key": "homekit.test_bridge.state",
-        "data": {
-            "accessories": [
-                {
-                    "entity_id": "light.living_room",
-                    "room_name": "Default Room",
-                },
-                {
-                    "entity_id": "switch.bedroom",
-                    "room_name": "Default Room",
-                },
-                {
-                    "entity_id": "sensor.unknown",
-                    "room_name": None,
-                },
-            ]
-        },
-    }
-
-
-@pytest.fixture
-def temp_storage_dir(tmp_path: Path) -> Path:
-    """Create a temporary storage directory."""
-    storage_dir = tmp_path / ".storage"
-    storage_dir.mkdir()
-    return storage_dir
-
-
-@pytest.fixture
-def mock_storage_file(
-    temp_storage_dir: Path, sample_homekit_storage: dict[str, Any]
-) -> Path:
-    """Create a mock HomeKit storage file."""
-    storage_file = temp_storage_dir / "homekit.test_bridge.state"
-    storage_file.write_text(json.dumps(sample_homekit_storage, indent=2))
-    return storage_file

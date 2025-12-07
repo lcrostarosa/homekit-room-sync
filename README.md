@@ -5,9 +5,6 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Contributors Welcome](https://img.shields.io/badge/Contributors-Welcome-brightgreen.svg)](https://github.com/lcrostarosa/homekit-room-sync/blob/master/CONTRIBUTING.md)
 
-> [!CAUTION]
-> **DISCLAIMER: This integration directly modifies internal Home Assistant storage files. YOU MUST BACK UP YOUR HOME ASSISTANT CONFIGURATION BEFORE INSTALLING OR USING THIS INTEGRATION. The authors are not responsible for any data loss or corruption.**
-
 A Home Assistant custom integration that automatically synchronizes your Home Assistant Areas with HomeKit Room assignments.
 
 ## Why This Exists
@@ -77,35 +74,22 @@ If you have multiple HomeKit bridges, you can add the integration multiple times
 
 ## How It Works
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    Home Assistant                               │
-│                                                                 │
-│  ┌──────────────┐    ┌─────────────────────────┐                │
-│  │ Entity/Area  │───▶│ HomeKit Room Sync       │                │
-│  │ Registry     │    │ (Listens for changes)   │                │
-│  └──────────────┘    └───────────┬─────────────┘                │
-│                                  │                              │
-│                                  ▼                              │
-│                      ┌─────────────────────────┐                │
-│                      │ .storage/homekit.*.state│                │
-│                      │ (Updates room_name)     │                │
-│                      └───────────┬─────────────┘                │
-│                                  │                              │
-│                                  ▼                              │
-│                      ┌─────────────────────────┐                │
-│                      │ homekit.reload service  │                │
-│                      │ (Applies changes)       │                │
-│                      └───────────┬─────────────┘                │
-│                                  │                              │
-└──────────────────────────────────┼──────────────────────────────┘
-                                   │
-                                   ▼
-                        ┌─────────────────────┐
-                        │   Apple HomeKit     │
-                        │   (Updated rooms)   │
-                        └─────────────────────┘
-```
+1. **Listen for registry changes** – the integration subscribes to entity, device and area registry signals so it knows when an entity moves rooms, areas are renamed, or new hardware appears.
+2. **Compute an exposure plan** – for each managed HomeKit bridge we calculate the entities that belong to the selected Areas, then merge any manual include/exclude overrides.
+3. **Update the official HomeKit config entry** – we write the computed lists to the bridge’s `filter` (`include_entities`, `exclude_entities`, `include_areas`) and update `entity_config` so every exposed entity gets a HomeKit `room` matching its Home Assistant Area (or the configured default).
+4. **Reload the HomeKit bridge** – after updating the config entry we call `async_reload` on the HomeKit integration so it re-reads the filter and reconfigures the bridge.
+
+Because the integration now uses Home Assistant’s public config entry APIs, there are no brittle edits to `.storage/homekit.*` files.
+
+During every configuration change (initial setup or options flow) and every automatic sync you’ll see a log entry that previews which entities will be exposed so you can verify the filters before they reach Apple Home.
+
+### Exposure Rules
+
+- **Area filter** – when you select Areas, only entities that resolve to those Area IDs (either directly or via their device) are exposed.
+- **Include overrides** – always expose these entity IDs even if they are outside the Area filter.
+- **Exclude overrides** – remove these entity IDs even if they belong to an allowed Area.
+- **Room naming** – the HomeKit `room` value matches the Area name. If an entity does not have an Area but you provide a default room, that label is used instead.
+- **Automatic resync** – any registry change (entity added/removed, Area rename, moving a device between Areas) triggers a debounced recomputation followed by a HomeKit bridge reload.
 
 ### Room Assignment Priority
 
@@ -118,13 +102,9 @@ For each entity, the room is determined in the following order:
 
 ## Important Notes
 
-⚠️ **Storage Modification Warning**
-
-This integration directly modifies HomeKit Bridge storage files located in your Home Assistant `.storage` directory. While the integration creates backups before making changes, you should:
-
-- Keep regular backups of your Home Assistant configuration
-- Understand that incorrect modifications could affect your HomeKit setup
-- Check the Home Assistant logs if you encounter issues
+- The integration updates the official HomeKit config entry using Home Assistant’s public APIs—no `.storage` files are touched.
+- Every sync logs the list of exposed entities so you can confirm the filters that will reach Apple Home.
+- If you change Areas or move devices frequently, expect the bridge to reload automatically; this is intentional so HomeKit always reflects the latest assignments.
 
 ### Supported Home Assistant Versions
 

@@ -15,6 +15,7 @@ from homeassistant.config_entries import (
 from homeassistant.core import callback
 from homeassistant.helpers import area_registry, config_validation as cv
 
+from .bridge_manager import ManagedBridgeConfig
 from .const import (
     CONF_ALLOWED_AREAS,
     CONF_BRIDGE_ID,
@@ -26,6 +27,7 @@ from .const import (
     CONF_MANAGED_BRIDGES,
     DOMAIN,
 )
+from .exposure import build_exposure_plan
 from .storage import async_discover_bridges
 
 _LOGGER = logging.getLogger(__name__)
@@ -222,6 +224,27 @@ class BridgeFlowMixin:
     async def _finish_bridge_flow(self) -> ConfigFlowResult:  # pragma: no cover - overridden
         raise NotImplementedError
 
+    def _log_exposure_preview(self, payloads: list[dict[str, Any]]) -> None:
+        """Log which entities will be exposed for each configured bridge."""
+        for payload in payloads:
+            config = ManagedBridgeConfig.from_dict(payload)
+            plan = build_exposure_plan(self.hass, config)
+            if plan.include_entities:
+                sample = ", ".join(plan.include_entities[:10])
+                if len(plan.include_entities) > 10:
+                    sample = f"{sample}, …"
+                _LOGGER.info(
+                    "Preview: bridge %s will expose %d entities (%s)",
+                    config.title,
+                    len(plan.include_entities),
+                    sample,
+                )
+            else:
+                _LOGGER.info(
+                    "Preview: bridge %s currently exposes no entities",
+                    config.title,
+                )
+
 
 class HomeKitRoomSyncConfigFlow(
     BridgeFlowMixin, ConfigFlow, domain=DOMAIN
@@ -310,6 +333,7 @@ class HomeKitRoomSyncConfigFlow(
         else:
             title = f"HomeKit Room Sync ({len(self._bridge_payloads)} bridges)"
 
+        self._log_exposure_preview(self._bridge_payloads)
         return self.async_create_entry(
             title=title,
             data={CONF_MANAGED_BRIDGES: self._bridge_payloads},
@@ -320,7 +344,7 @@ class HomeKitRoomSyncOptionsFlow(BridgeFlowMixin, OptionsFlow):
     """Handle options flow for HomeKit Room Sync."""
 
     def __init__(self, config_entry: ConfigEntry) -> None:
-        self._config_entry = config_entry
+        OptionsFlow.__init__(self, config_entry)
         BridgeFlowMixin.__init__(self)
 
     async def async_step_init(
@@ -413,6 +437,7 @@ class HomeKitRoomSyncOptionsFlow(BridgeFlowMixin, OptionsFlow):
             **self.config_entry.data,
             CONF_MANAGED_BRIDGES: self._bridge_payloads,
         }
+        self._log_exposure_preview(self._bridge_payloads)
         self.hass.config_entries.async_update_entry(
             self.config_entry,
             data=new_data,

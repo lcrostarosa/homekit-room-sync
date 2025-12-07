@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -19,6 +20,20 @@ from custom_components.homekit_room_sync.const import (
     CONF_INCLUDE_ENTITIES,
     CONF_MANAGED_BRIDGES,
 )
+
+
+@pytest.fixture(autouse=True)
+def mock_exposure_plan(monkeypatch):
+    plan = SimpleNamespace(include_entities=[], rooms_by_entity={}, allowed_entities=set())
+
+    def _fake_plan(hass, config):
+        return plan
+
+    monkeypatch.setattr(
+        "custom_components.homekit_room_sync.config_flow.build_exposure_plan",
+        _fake_plan,
+    )
+    return plan
 
 
 @pytest.fixture
