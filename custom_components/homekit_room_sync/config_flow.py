@@ -161,13 +161,18 @@ class BridgeFlowMixin:
         )
 
         default_room_key = user_input.get(CONF_DEFAULT_ROOM) or ""
-        default_room = (
-            self._area_name_lookup.get(default_room_key)
-            if default_room_key
-            else None
-        )
-        if default_room is None and default_room_key:
-            default_room = default_room_key
+        default_room = None
+        if default_room_key:
+            default_room = self._area_name_lookup.get(default_room_key)
+            if default_room is None:
+                area_id = self._area_id_lookup.get(default_room_key)
+                if area_id:
+                    registry = area_registry.async_get(self.hass)
+                    area_entry = registry.async_get_area(area_id)
+                    if area_entry and area_entry.name:
+                        default_room = str(area_entry.name)
+            if default_room is None:
+                default_room = default_room_key
 
         include_entities = _parse_entity_text(user_input.get(CONF_INCLUDE_ENTITIES))
         include_set = set(include_entities)
