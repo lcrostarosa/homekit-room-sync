@@ -386,8 +386,20 @@ class HomeKitRoomSyncOptionsFlow(BridgeFlowMixin, OptionsFlow):
     """Handle options flow for HomeKit Room Sync."""
 
     def __init__(self, config_entry: ConfigEntry) -> None:
-        OptionsFlow.__init__(self, config_entry)
+        self._safe_options_init(config_entry)
         BridgeFlowMixin.__init__(self)
+
+    def _safe_options_init(self, config_entry: ConfigEntry) -> None:
+        """Initialize OptionsFlow while remaining compatible with test mocks."""
+        try:
+            OptionsFlow.__init__(self, config_entry)  # type: ignore[misc]
+        except TypeError:
+            # Some mock environments (and older HA versions) provide an OptionsFlow
+            # base without an __init__ implementation. Fall back to storing the
+            # config entry manually so tests keep working.
+            self.config_entry = config_entry
+            if not hasattr(self, "hass"):
+                self.hass = getattr(config_entry, "hass", None)
 
     def _show_menu(self, **kwargs: Any) -> ConfigFlowResult:
         """Show a menu, using HA's helper when available."""
