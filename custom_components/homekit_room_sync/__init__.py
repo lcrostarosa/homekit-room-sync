@@ -26,7 +26,6 @@ from .const import (
     CONF_BRIDGE_ID,
     CONF_BRIDGE_NAME,
     CONF_BRIDGE_TITLE,
-    CONF_DEFAULT_ROOM,
     CONF_ENTRY_ID,
     CONF_EXCLUDE_ENTITIES,
     CONF_INCLUDE_ENTITIES,
@@ -253,10 +252,6 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         entry.version,
     )
 
-    if entry.version == 1:
-        if not _migrate_v1_to_v2(hass, entry):
-            return False
-
     if entry.version == 2:
         return await _migrate_v2_to_v3(hass, entry)
 
@@ -265,33 +260,6 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     _LOGGER.error("Migration from version %s is not supported", entry.version)
     return False
-
-
-def _migrate_v1_to_v2(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    bridge_name = entry.data.get(CONF_BRIDGE_NAME)
-    if not isinstance(bridge_name, str) or not bridge_name:
-        _LOGGER.error("Config entry %s is missing bridge_name", entry.entry_id)
-        return False
-
-    managed_bridge = {
-        CONF_BRIDGE_ID: bridge_name,
-        CONF_BRIDGE_TITLE: entry.title or bridge_name,
-        CONF_ALLOWED_AREAS: list(entry.data.get(CONF_ALLOWED_AREAS, [])),
-        CONF_INCLUDE_ENTITIES: list(entry.data.get(CONF_INCLUDE_ENTITIES, [])),
-        CONF_EXCLUDE_ENTITIES: list(entry.data.get(CONF_EXCLUDE_ENTITIES, [])),
-    }
-
-    data = {**entry.data}
-    data.pop(CONF_BRIDGE_NAME, None)
-    data.pop(CONF_ALLOWED_AREAS, None)
-    data.pop(CONF_DEFAULT_ROOM, None)
-    data[CONF_MANAGED_BRIDGES] = [managed_bridge]
-
-    entry.version = 2
-    hass.config_entries.async_update_entry(entry, data=data)
-    entry.data = data
-    _LOGGER.info("Migrated HomeKit Room Sync entry %s to version 2", entry.entry_id)
-    return True
 
 
 async def _migrate_v2_to_v3(hass: HomeAssistant, entry: ConfigEntry) -> bool:
