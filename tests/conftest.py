@@ -29,6 +29,16 @@ sys.modules["homeassistant.helpers.device_registry"] = device_registry
 sys.modules["homeassistant.helpers.entity_registry"] = entity_registry
 sys.modules["homeassistant.helpers.event"] = event
 
+from custom_components.homekit_room_sync.const import (
+    CONF_ALLOWED_AREAS,
+    CONF_BRIDGE_ID,
+    CONF_BRIDGE_TITLE,
+    CONF_DEFAULT_ROOM,
+    CONF_EXCLUDE_ENTITIES,
+    CONF_INCLUDE_ENTITIES,
+    CONF_MANAGED_BRIDGES,
+)
+
 
 @pytest.fixture
 def mock_hass() -> MagicMock:
@@ -45,8 +55,8 @@ def mock_hass() -> MagicMock:
     hass.config_entries.async_reload = AsyncMock()
 
     # Mock async_add_executor_job to run synchronously
-    async def mock_executor_job(func, *args):
-        return func(*args)
+    async def mock_executor_job(func, *args, **kwargs):
+        return func(*args, **kwargs)
 
     hass.async_add_executor_job = mock_executor_job
     return hass
@@ -58,12 +68,19 @@ def mock_config_entry() -> MagicMock:
     entry = MagicMock()
     entry.entry_id = "test_entry_id"
     entry.data = {
-        "bridge_name": "test_bridge",
-        "default_room": "Living Room",
-        "allowed_areas": [],
+        CONF_MANAGED_BRIDGES: [
+            {
+                CONF_BRIDGE_ID: "test_bridge",
+                CONF_BRIDGE_TITLE: "Test Bridge",
+                CONF_ALLOWED_AREAS: [],
+                CONF_DEFAULT_ROOM: "Living Room",
+                CONF_INCLUDE_ENTITIES: [],
+                CONF_EXCLUDE_ENTITIES: [],
+            }
+        ]
     }
-    entry.title = "HomeKit Bridge: test_bridge"
-    entry.version = 1
+    entry.title = "HomeKit Bridge: Test Bridge"
+    entry.version = 2
     entry.async_on_unload = MagicMock()
     entry.add_update_listener = MagicMock(return_value=MagicMock())
     return entry

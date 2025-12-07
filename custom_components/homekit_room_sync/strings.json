@@ -2,18 +2,20 @@
   "config": {
     "step": {
       "user": {
-        "title": "Select HomeKit Bridge",
-        "description": "Select a HomeKit Bridge to sync room assignments for. Found {bridge_count} available bridge(s).",
+        "title": "Select HomeKit Bridges",
+        "description": "Select one or more HomeKit Bridges to manage. Found {bridge_count} available bridge(s).",
         "data": {
-          "bridge_name": "HomeKit Bridge"
+          "managed_bridges": "HomeKit Bridges"
         }
       },
-      "room": {
-        "title": "Default Room",
-        "description": "Select a default room for entities in the '{bridge_name}' bridge that don't have an assigned area in Home Assistant. This is optional.",
+      "bridge": {
+        "title": "Configure {bridge_name}",
+        "description": "Step {current_index} of {bridge_total}. Choose the allowed Home Assistant Areas, optional default room label, and provide optional include/exclude entity overrides (comma or newline separated entity IDs). Include overrides always win over area filters.",
         "data": {
-          "default_room": "Default Room",
-          "allowed_areas": "Allowed Areas (optional)"
+          "allowed_areas": "Allowed Areas",
+          "default_room": "Default HomeKit Room (optional)",
+          "include_entities": "Include entity overrides",
+          "exclude_entities": "Exclude entity overrides"
         }
       }
     },
@@ -22,17 +24,27 @@
       "all_bridges_configured": "All available HomeKit Bridges have already been configured."
     },
     "error": {
-      "invalid_bridge": "The selected bridge is not valid or no longer exists."
+      "invalid_bridge": "The selected bridge is not valid or no longer exists.",
+      "select_bridge": "Select at least one bridge to continue."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "HomeKit Room Sync Options",
-        "description": "Configure room sync options for the '{bridge_name}' bridge.",
+        "title": "Select Bridges to Manage",
+        "description": "Update which HomeKit Bridges this entry manages. Existing bridge-specific filters will be requested next.",
         "data": {
-          "default_room": "Default Room",
-          "allowed_areas": "Allowed Areas (optional)"
+          "managed_bridges": "HomeKit Bridges"
+        }
+      },
+      "bridge": {
+        "title": "Update {bridge_name}",
+        "description": "Step {current_index} of {bridge_total}. Adjust allowed areas, default room and include/exclude overrides.",
+        "data": {
+          "allowed_areas": "Allowed Areas",
+          "default_room": "Default HomeKit Room (optional)",
+          "include_entities": "Include entity overrides",
+          "exclude_entities": "Exclude entity overrides"
         }
       }
     }
