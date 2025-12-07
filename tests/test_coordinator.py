@@ -217,4 +217,3 @@ async def test_area_move_triggers_update(
         "light.living_room",
         "switch.bedroom",
     }
-*** End of File
