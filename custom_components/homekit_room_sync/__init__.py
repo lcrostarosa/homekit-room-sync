@@ -7,20 +7,37 @@ HomeKit Bridge integration.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import TYPE_CHECKING
 
+import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.event import async_call_later
 
+from .bridge_manager import HomeKitBridgeManager, parse_bridge_configs
 from .const import (
+    ATTR_BRIDGE_ID,
+    ATTR_ENTRY_ID,
+    CONF_AREAS,
+    CONF_ALLOWED_AREAS,
+    CONF_BRIDGES,
+    CONF_BRIDGE_ID,
+    CONF_BRIDGE_NAME,
+    CONF_BRIDGE_TITLE,
+    CONF_ENTRY_ID,
+    CONF_EXCLUDE_ENTITIES,
+    CONF_INCLUDE_ENTITIES,
+    CONF_MANAGED_BRIDGES,
     DOMAIN,
     EVENT_AREA_REGISTRY_UPDATED,
+    EVENT_DEVICE_REGISTRY_UPDATED,
     EVENT_ENTITY_REGISTRY_UPDATED,
+    HOMEKIT_DOMAIN,
+    SERVICE_SYNC,
     SYNC_DEBOUNCE_DELAY,
 )
-from .coordinator import HomeKitRoomSyncCoordinator
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -46,16 +63,72 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """
     _LOGGER.debug("Setting up HomeKit Room Sync for bridge: %s", entry.title)
 
-    # Initialize the coordinator
-    coordinator = HomeKitRoomSyncCoordinator(hass, entry)
+    bridge_configs = parse_bridge_configs(entry)
+    if not bridge_configs:
+        _LOGGER.error(
+            "No HomeKit bridges configured for %s. Please re-run the config flow.",
+            entry.title or entry.entry_id,
+        )
+        return False
+
+    manager = HomeKitBridgeManager(hass, entry, bridge_configs)
 
     # Store coordinator and listener references for cleanup
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = {
-        "coordinator": coordinator,
+        "manager": manager,
         "listeners": [],
         "debounce_cancel": None,
     }
+
+    # Register manual sync service once
+    if not hass.data[DOMAIN].get("service_registered"):
+
+        async def async_handle_manual_sync(call) -> None:
+            """Manually trigger a sync for one or all bridges."""
+            entry_id = call.data.get(ATTR_ENTRY_ID)
+            bridge_id = call.data.get(ATTR_BRIDGE_ID)
+
+            async def _sync_target(manager: HomeKitBridgeManager) -> None:
+                if bridge_id:
+                    if bridge_id in manager.bridge_ids:
+                        await manager.async_sync(bridge_id)
+                    return
+                await manager.async_sync()
+
+            domain_data = hass.data.get(DOMAIN, {})
+            if entry_id:
+                entry_data = domain_data.get(entry_id)
+                if not entry_data:
+                    _LOGGER.warning(
+                        "Manual sync requested for unknown entry_id: %s",
+                        entry_id,
+                    )
+                    return
+                await _sync_target(entry_data["manager"])
+                return
+
+            tasks = [
+                _sync_target(entry_data["manager"])
+                for key, entry_data in domain_data.items()
+                if key != "service_registered"
+            ]
+            if tasks:
+                await asyncio.gather(*tasks)
+
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_SYNC,
+            async_handle_manual_sync,
+            schema=vol.Schema(
+                {
+                    vol.Optional(ATTR_ENTRY_ID): str,
+                    vol.Optional(ATTR_BRIDGE_ID): str,
+                }
+            ),
+        )
+        hass.data[DOMAIN]["service_registered"] = True
+        _LOGGER.debug("Registered manual sync service: %s.%s", DOMAIN, SERVICE_SYNC)
 
     # Set up the debounced sync function
     @callback
@@ -85,7 +158,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 return
 
             entry_data["debounce_cancel"] = None
-            await coordinator.async_sync_rooms()
+            await manager.async_sync()
 
         # Schedule new sync with debounce delay
         entry_data["debounce_cancel"] = async_call_later(
@@ -105,6 +178,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     listeners.append(hass.bus.async_listen(EVENT_AREA_REGISTRY_UPDATED, schedule_sync))
     _LOGGER.debug("Registered listener for %s", EVENT_AREA_REGISTRY_UPDATED)
 
+    listeners.append(
+        hass.bus.async_listen(EVENT_DEVICE_REGISTRY_UPDATED, schedule_sync)
+    )
+    _LOGGER.debug("Registered listener for %s", EVENT_DEVICE_REGISTRY_UPDATED)
+
     # Store listeners for cleanup
     entry_data = hass.data[DOMAIN][entry.entry_id]
     entry_data["listeners"] = listeners  # type: ignore[assignment]
@@ -114,7 +192,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Perform initial sync
     _LOGGER.info("Performing initial room sync for bridge: %s", entry.title)
-    await coordinator.async_sync_rooms()
+    await manager.async_sync()
 
     return True
 
@@ -160,28 +238,101 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     for unsub in entry_data.get("listeners", []):
         unsub()
 
-    _LOGGER.info("Successfully unloaded HomeKit Room Sync for bridge: %s", entry.title)
+    await entry_data["manager"].async_shutdown()
+
+    _LOGGER.info("Successfully unloaded HomeKit Room Sync for entry: %s", entry.title)
     return True
 
 
-async def async_migrate_entry(_hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Migrate old entry to new version.
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Handle config entry migrations."""
+    _LOGGER.debug(
+        "Migrating HomeKit Room Sync entry %s from version %s",
+        entry.entry_id,
+        entry.version,
+    )
 
-    This function handles config entry version migrations for
-    backwards compatibility.
+    if entry.version == 2:
+        return await _migrate_v2_to_v3(hass, entry)
 
-    Args:
-        _hass: The Home Assistant instance (unused).
-        entry: The config entry to migrate.
-
-    Returns:
-        True if migration was successful, False otherwise.
-    """
-    _LOGGER.debug("Migrating from version %s", entry.version)
-
-    # Currently at version 1, no migration needed
-    if entry.version == 1:
+    if entry.version == 3:
         return True
 
     _LOGGER.error("Migration from version %s is not supported", entry.version)
     return False
+
+
+async def _migrate_v2_to_v3(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    raw_bridges = entry.data.get(CONF_MANAGED_BRIDGES)
+    if not isinstance(raw_bridges, list):
+        _LOGGER.error("Entry %s missing managed bridges", entry.entry_id)
+        return False
+
+    homekit_entries = hass.config_entries.async_entries(HOMEKIT_DOMAIN)
+    lookup_by_id = {hk.entry_id: hk.entry_id for hk in homekit_entries}
+    lookup_by_title = {
+        (hk.title or "").strip(): hk.entry_id for hk in homekit_entries if hk.title
+    }
+    lookup_by_name = {
+        str(hk.data.get("name")).strip(): hk.entry_id
+        for hk in homekit_entries
+        if isinstance(hk.data.get("name"), str)
+    }
+
+    def resolve_entry_id(identifier: str) -> str | None:
+        if identifier in lookup_by_id:
+            return identifier
+        if identifier in lookup_by_title:
+            return lookup_by_title[identifier]
+        if identifier in lookup_by_name:
+            return lookup_by_name[identifier]
+        return None
+
+    bridges: list[dict[str, object]] = []
+    unknown: list[str] = []
+
+    for raw in raw_bridges:
+        if not isinstance(raw, dict):
+            continue
+        identifier = str(
+            raw.get(CONF_BRIDGE_ID)
+            or raw.get(CONF_BRIDGE_TITLE)
+            or raw.get(CONF_BRIDGE_NAME)
+            or ""
+        ).strip()
+        resolved = resolve_entry_id(identifier)
+        if not resolved:
+            unknown.append(identifier or "<unknown>")
+            continue
+
+        bridges.append(
+            {
+                CONF_ENTRY_ID: resolved,
+                CONF_AREAS: list(raw.get(CONF_ALLOWED_AREAS, [])),
+                CONF_INCLUDE_ENTITIES: list(raw.get(CONF_INCLUDE_ENTITIES, [])),
+                CONF_EXCLUDE_ENTITIES: list(raw.get(CONF_EXCLUDE_ENTITIES, [])),
+            }
+        )
+
+    if not bridges:
+        _LOGGER.error(
+            "Unable to migrate entry %s: no HomeKit bridges resolved (%s)",
+            entry.entry_id,
+            ", ".join(unknown) or "no identifiers provided",
+        )
+        return False
+
+    entry.version = 3
+    data = {CONF_BRIDGES: bridges}
+    hass.config_entries.async_update_entry(entry, data=data)
+    entry.data = data
+
+    if unknown:
+        _LOGGER.warning(
+            "Skipped %s HomeKit bridge(s) during migration for entry %s: %s",
+            len(unknown),
+            entry.entry_id,
+            ", ".join(unknown),
+        )
+    _LOGGER.info("Migrated HomeKit Room Sync entry %s to version 3", entry.entry_id)
+    return True

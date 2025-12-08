@@ -2,323 +2,218 @@
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
-from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
-from custom_components.homekit_room_sync.coordinator import (
-    HomeKitRoomSyncCoordinator,
-)
+from custom_components.homekit_room_sync.bridge_manager import ManagedBridgeConfig
+from custom_components.homekit_room_sync.coordinator import HomeKitRoomSyncCoordinator
 
 
-class TestHomeKitRoomSyncCoordinator:
-    """Tests for HomeKitRoomSyncCoordinator."""
+def _build_config(**overrides) -> ManagedBridgeConfig:
+    base = {
+        "bridge_id": "test_bridge",
+        "friendly_name": "Test Bridge",
+        "allowed_areas": set(),
+        "include_entities": set(),
+        "exclude_entities": set(),
+        "default_room": "Living Room",
+    }
+    base.update(overrides)
+    return ManagedBridgeConfig(**base)
 
-    def test_init(self, mock_hass: MagicMock, mock_config_entry: MagicMock) -> None:
-        """Test coordinator initialization."""
-        coordinator = HomeKitRoomSyncCoordinator(mock_hass, mock_config_entry)
 
-        assert coordinator.hass == mock_hass
-        assert coordinator.entry == mock_config_entry
-        assert coordinator._bridge_name == "test_bridge"
-        assert coordinator._default_room == "Living Room"
+@pytest.mark.asyncio
+async def test_updates_filters_and_rooms(
+    mock_hass,
+    mock_config_entry,
+    mock_entity_registry,
+    mock_device_registry,
+    mock_area_registry,
+    mock_homekit_entry,
+) -> None:
+    """Coordinator should update include_entities and entity_config."""
+    config = _build_config(allowed_areas={"area_living_room"})
+    coordinator = HomeKitRoomSyncCoordinator(mock_hass, mock_config_entry, config)
 
-    def test_bridge_storage_file_path(
-        self, mock_hass: MagicMock, mock_config_entry: MagicMock
-    ) -> None:
-        """Test bridge storage file path generation."""
-        coordinator = HomeKitRoomSyncCoordinator(mock_hass, mock_config_entry)
+    mock_homekit_entry.data = {"filter": {}, "entity_config": {}}
+    mock_hass.config_entries.async_reload.reset_mock()
 
-        expected_path = Path("/config/.storage/homekit.test_bridge.state")
-        assert coordinator.bridge_storage_file == expected_path
-
-    @pytest.mark.asyncio
-    async def test_async_sync_rooms_file_not_found(
-        self, mock_hass: MagicMock, mock_config_entry: MagicMock
-    ) -> None:
-        """Test sync when storage file doesn't exist."""
-        mock_hass.config.path = MagicMock(return_value="/nonexistent")
-        coordinator = HomeKitRoomSyncCoordinator(mock_hass, mock_config_entry)
-
+    with (
+        patch(
+            "custom_components.homekit_room_sync.exposure.entity_registry.async_get",
+            return_value=mock_entity_registry,
+        ),
+        patch(
+            "custom_components.homekit_room_sync.exposure.device_registry.async_get",
+            return_value=mock_device_registry,
+        ),
+        patch(
+            "custom_components.homekit_room_sync.exposure.area_registry.async_get",
+            return_value=mock_area_registry,
+        ),
+    ):
         result = await coordinator.async_sync_rooms()
 
-        assert result is False
-
-    @pytest.mark.asyncio
-    async def test_async_sync_rooms_success(
-        self,
-        mock_hass: MagicMock,
-        mock_config_entry: MagicMock,
-        mock_entity_registry: MagicMock,
-        mock_device_registry: MagicMock,
-        mock_area_registry: MagicMock,
-        temp_storage_dir: Path,
-        sample_homekit_storage: dict[str, Any],
-    ) -> None:
-        """Test successful room sync."""
-        # Set up storage file
-        storage_file = temp_storage_dir / "homekit.test_bridge.state"
-        storage_file.write_text(json.dumps(sample_homekit_storage))
-
-        # Configure mock hass to use temp directory
-        mock_hass.config.path = MagicMock(
-            return_value=str(temp_storage_dir.parent)
-        )
-
-        coordinator = HomeKitRoomSyncCoordinator(mock_hass, mock_config_entry)
-
-        with (
-            patch(
-                "custom_components.homekit_room_sync.coordinator.entity_registry.async_get",
-                return_value=mock_entity_registry,
-            ),
-            patch(
-                "custom_components.homekit_room_sync.coordinator.device_registry.async_get",
-                return_value=mock_device_registry,
-            ),
-            patch(
-                "custom_components.homekit_room_sync.coordinator.area_registry.async_get",
-                return_value=mock_area_registry,
-            ),
-        ):
-            result = await coordinator.async_sync_rooms()
-
-        assert result is True
-
-        # Verify the storage file was updated
-        updated_data = json.loads(storage_file.read_text())
-        accessories = updated_data["data"]["accessories"]
-
-        # light.living_room should be in "Living Room" (from entity area)
-        light = next(a for a in accessories if a["entity_id"] == "light.living_room")
-        assert light["room_name"] == "Living Room"
-
-        # switch.bedroom should be in "Bedroom" (from device area)
-        switch = next(a for a in accessories if a["entity_id"] == "switch.bedroom")
-        assert switch["room_name"] == "Bedroom"
-
-        # sensor.unknown should use default room
-        sensor = next(a for a in accessories if a["entity_id"] == "sensor.unknown")
-        assert sensor["room_name"] == "Living Room"
-
-    @pytest.mark.asyncio
-    async def test_async_sync_rooms_no_changes(
-        self,
-        mock_hass: MagicMock,
-        mock_config_entry: MagicMock,
-        mock_entity_registry: MagicMock,
-        mock_device_registry: MagicMock,
-        mock_area_registry: MagicMock,
-        temp_storage_dir: Path,
-    ) -> None:
-        """Test sync when no changes are needed."""
-        # Create storage with already correct rooms
-        storage_data = {
-            "version": 1,
-            "key": "homekit.test_bridge.state",
-            "data": {
-                "accessories": [
-                    {
-                        "entity_id": "light.living_room",
-                        "room_name": "Living Room",
-                    },
-                ]
-            },
-        }
-        storage_file = temp_storage_dir / "homekit.test_bridge.state"
-        storage_file.write_text(json.dumps(storage_data))
-
-        mock_hass.config.path = MagicMock(
-            return_value=str(temp_storage_dir.parent)
-        )
-
-        coordinator = HomeKitRoomSyncCoordinator(mock_hass, mock_config_entry)
-
-        with (
-            patch(
-                "custom_components.homekit_room_sync.coordinator.entity_registry.async_get",
-                return_value=mock_entity_registry,
-            ),
-            patch(
-                "custom_components.homekit_room_sync.coordinator.device_registry.async_get",
-                return_value=mock_device_registry,
-            ),
-            patch(
-                "custom_components.homekit_room_sync.coordinator.area_registry.async_get",
-                return_value=mock_area_registry,
-            ),
-        ):
-            result = await coordinator.async_sync_rooms()
-
-        assert result is True
-        # HomeKit reload should NOT be called since no changes
-        mock_hass.services.async_call.assert_not_called()
-
-    def test_get_room_for_entity_with_area(
-        self,
-        mock_hass: MagicMock,
-        mock_config_entry: MagicMock,
-        mock_entity_registry: MagicMock,
-        mock_device_registry: MagicMock,
-        mock_area_registry: MagicMock,
-    ) -> None:
-        """Test getting room for entity with direct area assignment."""
-        coordinator = HomeKitRoomSyncCoordinator(mock_hass, mock_config_entry)
-
-        room = coordinator._get_room_for_entity(
-            "light.living_room",
-            mock_entity_registry,
-            mock_device_registry,
-            mock_area_registry,
-        )
-
-        assert room == "Living Room"
-
-    def test_get_room_for_entity_with_device_area(
-        self,
-        mock_hass: MagicMock,
-        mock_config_entry: MagicMock,
-        mock_entity_registry: MagicMock,
-        mock_device_registry: MagicMock,
-        mock_area_registry: MagicMock,
-    ) -> None:
-        """Test getting room for entity via device area."""
-        coordinator = HomeKitRoomSyncCoordinator(mock_hass, mock_config_entry)
-
-        room = coordinator._get_room_for_entity(
-            "switch.bedroom",
-            mock_entity_registry,
-            mock_device_registry,
-            mock_area_registry,
-        )
-
-        assert room == "Bedroom"
-
-    def test_get_room_for_entity_fallback_default(
-        self,
-        mock_hass: MagicMock,
-        mock_config_entry: MagicMock,
-        mock_entity_registry: MagicMock,
-        mock_device_registry: MagicMock,
-        mock_area_registry: MagicMock,
-    ) -> None:
-        """Test getting room for entity without area falls back to default."""
-        coordinator = HomeKitRoomSyncCoordinator(mock_hass, mock_config_entry)
-
-        room = coordinator._get_room_for_entity(
-            "sensor.unknown",
-            mock_entity_registry,
-            mock_device_registry,
-            mock_area_registry,
-        )
-
-        assert room == "Living Room"  # Default room from config
-
-    def test_get_room_for_unknown_entity(
-        self,
-        mock_hass: MagicMock,
-        mock_config_entry: MagicMock,
-        mock_entity_registry: MagicMock,
-        mock_device_registry: MagicMock,
-        mock_area_registry: MagicMock,
-    ) -> None:
-        """Test getting room for entity not in registry."""
-        coordinator = HomeKitRoomSyncCoordinator(mock_hass, mock_config_entry)
-
-        room = coordinator._get_room_for_entity(
-            "light.nonexistent",
-            mock_entity_registry,
-            mock_device_registry,
-            mock_area_registry,
-        )
-
-        assert room == "Living Room"  # Falls back to default
-
-    def test_get_available_bridges(
-        self, mock_hass: MagicMock, temp_storage_dir: Path
-    ) -> None:
-        """Test discovering available HomeKit bridges."""
-        # Create mock bridge files
-        (temp_storage_dir / "homekit.bridge1.state").write_text("{}")
-        (temp_storage_dir / "homekit.bridge2.state").write_text("{}")
-        (temp_storage_dir / "other_file.json").write_text("{}")
-
-        mock_hass.config.path = MagicMock(
-            return_value=str(temp_storage_dir.parent)
-        )
-
-        bridges = HomeKitRoomSyncCoordinator.get_available_bridges(mock_hass)
-
-        assert bridges == ["bridge1", "bridge2"]
-
-    def test_get_available_bridges_no_storage(
-        self, mock_hass: MagicMock, tmp_path: Path
-    ) -> None:
-        """Test discovering bridges when storage dir doesn't exist."""
-        mock_hass.config.path = MagicMock(return_value=str(tmp_path / "nonexistent"))
-
-        bridges = HomeKitRoomSyncCoordinator.get_available_bridges(mock_hass)
-
-        assert bridges == []
+    assert result is True
+    data = mock_homekit_entry.data
+    assert data["filter"]["include_entities"] == ["light.living_room"]
+    assert data["filter"]["exclude_entities"] == []
+    assert data["filter"]["include_areas"] == ["area_living_room"]
+    assert data["entity_config"] == {
+        "light.living_room": {"room": "Living Room"},
+    }
+    mock_hass.config_entries.async_reload.assert_awaited_once()
 
 
-class TestCoordinatorStorageOperations:
-    """Tests for coordinator storage operations."""
+@pytest.mark.asyncio
+async def test_include_and_exclude_overrides(
+    mock_hass,
+    mock_config_entry,
+    mock_entity_registry,
+    mock_device_registry,
+    mock_area_registry,
+    mock_homekit_entry,
+) -> None:
+    """Manual include/exclude lists should override area filters."""
+    config = _build_config(
+        allowed_areas={"area_living_room"},
+        include_entities={"switch.bedroom"},
+        exclude_entities={"light.living_room"},
+    )
+    coordinator = HomeKitRoomSyncCoordinator(mock_hass, mock_config_entry, config)
 
-    @pytest.mark.asyncio
-    async def test_read_storage_file_invalid_json(
-        self, mock_hass: MagicMock, mock_config_entry: MagicMock, tmp_path: Path
-    ) -> None:
-        """Test reading invalid JSON storage file."""
-        storage_dir = tmp_path / ".storage"
-        storage_dir.mkdir()
-        storage_file = storage_dir / "homekit.test_bridge.state"
-        storage_file.write_text("invalid json {{{")
+    mock_homekit_entry.data = {"filter": {}, "entity_config": {}}
 
-        mock_hass.config.path = MagicMock(return_value=str(tmp_path))
-        coordinator = HomeKitRoomSyncCoordinator(mock_hass, mock_config_entry)
+    with (
+        patch(
+            "custom_components.homekit_room_sync.exposure.entity_registry.async_get",
+            return_value=mock_entity_registry,
+        ),
+        patch(
+            "custom_components.homekit_room_sync.exposure.device_registry.async_get",
+            return_value=mock_device_registry,
+        ),
+        patch(
+            "custom_components.homekit_room_sync.exposure.area_registry.async_get",
+            return_value=mock_area_registry,
+        ),
+    ):
+        await coordinator.async_sync_rooms()
 
-        result = await coordinator._read_storage_file(storage_file)
+    data = mock_homekit_entry.data
+    assert data["filter"]["include_entities"] == ["switch.bedroom"]
+    assert data["filter"]["exclude_entities"] == ["light.living_room"]
+    assert data["entity_config"]["switch.bedroom"]["room"] == "Bedroom"
 
-        assert result is None
 
-    @pytest.mark.asyncio
-    async def test_read_storage_file_missing_data_key(
-        self, mock_hass: MagicMock, mock_config_entry: MagicMock, tmp_path: Path
-    ) -> None:
-        """Test reading storage file without 'data' key."""
-        storage_dir = tmp_path / ".storage"
-        storage_dir.mkdir()
-        storage_file = storage_dir / "homekit.test_bridge.state"
-        storage_file.write_text('{"version": 1}')
+@pytest.mark.asyncio
+async def test_no_changes_skips_reload(
+    mock_hass,
+    mock_config_entry,
+    mock_entity_registry,
+    mock_device_registry,
+    mock_area_registry,
+    mock_homekit_entry,
+) -> None:
+    """Running twice without registry changes should avoid reload."""
+    config = _build_config(allowed_areas={"area_living_room"})
+    coordinator = HomeKitRoomSyncCoordinator(mock_hass, mock_config_entry, config)
 
-        mock_hass.config.path = MagicMock(return_value=str(tmp_path))
-        coordinator = HomeKitRoomSyncCoordinator(mock_hass, mock_config_entry)
+    mock_homekit_entry.data = {"filter": {}, "entity_config": {}}
 
-        result = await coordinator._read_storage_file(storage_file)
+    with (
+        patch(
+            "custom_components.homekit_room_sync.exposure.entity_registry.async_get",
+            return_value=mock_entity_registry,
+        ),
+        patch(
+            "custom_components.homekit_room_sync.exposure.device_registry.async_get",
+            return_value=mock_device_registry,
+        ),
+        patch(
+            "custom_components.homekit_room_sync.exposure.area_registry.async_get",
+            return_value=mock_area_registry,
+        ),
+    ):
+        await coordinator.async_sync_rooms()
 
-        assert result is None
+    mock_hass.config_entries.async_reload.reset_mock()
+    mock_hass.config_entries.async_update_entry.reset_mock()
 
-    @pytest.mark.asyncio
-    async def test_create_backup(
-        self, mock_hass: MagicMock, mock_config_entry: MagicMock, tmp_path: Path
-    ) -> None:
-        """Test backup creation."""
-        storage_dir = tmp_path / ".storage"
-        storage_dir.mkdir()
-        storage_file = storage_dir / "homekit.test_bridge.state"
-        storage_file.write_text('{"test": "data"}')
+    with (
+        patch(
+            "custom_components.homekit_room_sync.exposure.entity_registry.async_get",
+            return_value=mock_entity_registry,
+        ),
+        patch(
+            "custom_components.homekit_room_sync.exposure.device_registry.async_get",
+            return_value=mock_device_registry,
+        ),
+        patch(
+            "custom_components.homekit_room_sync.exposure.area_registry.async_get",
+            return_value=mock_area_registry,
+        ),
+    ):
+        await coordinator.async_sync_rooms()
 
-        mock_hass.config.path = MagicMock(return_value=str(tmp_path))
-        coordinator = HomeKitRoomSyncCoordinator(mock_hass, mock_config_entry)
+    mock_hass.config_entries.async_update_entry.assert_not_called()
+    mock_hass.config_entries.async_reload.assert_not_called()
 
-        result = await coordinator._create_backup(storage_file)
 
-        assert result is True
-        backup_file = storage_file.with_suffix(".state.backup")
-        assert backup_file.exists()
-        assert backup_file.read_text() == '{"test": "data"}'
+@pytest.mark.asyncio
+async def test_area_move_triggers_update(
+    mock_hass,
+    mock_config_entry,
+    mock_entity_registry,
+    mock_device_registry,
+    mock_area_registry,
+    mock_homekit_entry,
+) -> None:
+    """Moving an entity into an allowed area should add it to the filter."""
+    config = _build_config(allowed_areas={"area_living_room"})
+    coordinator = HomeKitRoomSyncCoordinator(mock_hass, mock_config_entry, config)
 
+    mock_homekit_entry.data = {"filter": {}, "entity_config": {}}
+
+    with (
+        patch(
+            "custom_components.homekit_room_sync.exposure.entity_registry.async_get",
+            return_value=mock_entity_registry,
+        ),
+        patch(
+            "custom_components.homekit_room_sync.exposure.device_registry.async_get",
+            return_value=mock_device_registry,
+        ),
+        patch(
+            "custom_components.homekit_room_sync.exposure.area_registry.async_get",
+            return_value=mock_area_registry,
+        ),
+    ):
+        await coordinator.async_sync_rooms()
+
+    # Move the switch into the living room area
+    mock_entity_registry.entities["switch.bedroom"].area_id = "area_living_room"
+    mock_hass.config_entries.async_update_entry.reset_mock()
+
+    with (
+        patch(
+            "custom_components.homekit_room_sync.exposure.entity_registry.async_get",
+            return_value=mock_entity_registry,
+        ),
+        patch(
+            "custom_components.homekit_room_sync.exposure.device_registry.async_get",
+            return_value=mock_device_registry,
+        ),
+        patch(
+            "custom_components.homekit_room_sync.exposure.area_registry.async_get",
+            return_value=mock_area_registry,
+        ),
+    ):
+        await coordinator.async_sync_rooms()
+
+    data = mock_homekit_entry.data
+    assert set(data["filter"]["include_entities"]) == {
+        "light.living_room",
+        "switch.bedroom",
+    }

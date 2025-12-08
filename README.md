@@ -5,9 +5,6 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Contributors Welcome](https://img.shields.io/badge/Contributors-Welcome-brightgreen.svg)](https://github.com/lcrostarosa/homekit-room-sync/blob/master/CONTRIBUTING.md)
 
-> [!CAUTION]
-> **DISCLAIMER: This integration directly modifies internal Home Assistant storage files. YOU MUST BACK UP YOUR HOME ASSISTANT CONFIGURATION BEFORE INSTALLING OR USING THIS INTEGRATION. The authors are not responsible for any data loss or corruption.**
-
 A Home Assistant custom integration that automatically synchronizes your Home Assistant Areas with HomeKit Room assignments.
 
 ## Why This Exists
@@ -45,8 +42,8 @@ You can filter by domains (lights, switches, fans, etc.) and use wildcards, but 
 1. Go to **Settings** → **Devices & Services**
 2. Click **+ Add Integration**
 3. Search for "HomeKit Room Sync"
-4. Select a HomeKit Bridge from the dropdown (Friendly names are displayed)
-5. Optionally select a default room for entities without area assignments
+4. Select one or more HomeKit Bridges from the list (friendly names are displayed)
+5. Choose the Home Assistant Areas to include and optionally add manual include/exclude entity overrides
 6. Click **Submit**
 
 ![Select Bridge](assets/select_bridge.png)
@@ -67,12 +64,14 @@ Once configured, the integration works automatically in the background.
 
 | Option | Description |
 |--------|-------------|
-| **HomeKit Bridge** | The HomeKit bridge to sync room assignments for |
-| **Default Room** | The room to assign to entities that don't have an area in Home Assistant (optional) |
+| **HomeKit Bridges** | One or more HomeKit Bridge entries to manage (friendly names shown) |
+| **Areas** | Limit syncing to entities assigned to the selected Home Assistant Areas |
+| **Include entity overrides** | Always expose these entities, even if they are not in the allowed Areas |
+| **Exclude entity overrides** | Never expose these entities, even if they would otherwise match |
 
 ### Multiple Bridges
 
-If you have multiple HomeKit bridges, you can add the integration multiple times, once for each bridge. Each bridge can have its own default room setting.
+You can manage **multiple HomeKit bridges inside a single HomeKit Room Sync entry**. Each bridge gets its own Area filters and include/exclude overrides. If you prefer to keep things isolated you can still add additional HomeKit Room Sync entries.
 
 ## How It Works
 
@@ -87,8 +86,8 @@ If you have multiple HomeKit bridges, you can add the integration multiple times
 │                                  │                              │
 │                                  ▼                              │
 │                      ┌─────────────────────────┐                │
-│                      │ .storage/homekit.*.state│                │
-│                      │ (Updates room_name)     │                │
+│                      │ HomeKit Config Entries  │                │
+│                      │ (filter & entity_config)│                │
 │                      └───────────┬─────────────┘                │
 │                                  │                              │
 │                                  ▼                              │
@@ -112,27 +111,23 @@ For each entity, the room is determined in the following order:
 
 1. **Entity's direct area**: If the entity has an area assigned directly
 2. **Device's area**: If the entity's parent device has an area assigned
-3. **Default room**: The configured default room for the bridge
-4. **No change**: If none of the above, the room assignment is left unchanged
+3. **No change**: If neither area is available, the room assignment is left as-is
 
 ## Important Notes
 
-⚠️ **Storage Modification Warning**
-
-This integration directly modifies HomeKit Bridge storage files located in your Home Assistant `.storage` directory. While the integration creates backups before making changes, you should:
-
-- Keep regular backups of your Home Assistant configuration
-- Understand that incorrect modifications could affect your HomeKit setup
-- Check the Home Assistant logs if you encounter issues
+- Uses the official Home Assistant config-entry API (no direct `.storage` editing)
+- Requires Home Assistant 2025.12.1 or newer so the HomeKit integration understands per-entry filters
+- Each sync triggers a HomeKit reload for the affected bridge
 
 ### Supported Home Assistant Versions
 
-- Home Assistant 2024.1.0 or newer
+- Home Assistant 2025.12.1 or newer
 
 ### Known Limitations
 
 - Changes may take a few seconds to appear in the Apple Home app after sync
 - Some HomeKit apps may cache room assignments; force-close and reopen the app if changes don't appear
+- Exposure is controlled by the HomeKit Bridge integration (include domains/areas). Room alignment still requires writing per-entity `entity_config` data; HomeKit does not auto-map HA areas to rooms on its own.
 
 ## Troubleshooting
 

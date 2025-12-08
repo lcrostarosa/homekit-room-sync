@@ -1,0 +1,78 @@
+name: "Bug report"
+description: "Report an issue with HomeKit Room Sync"
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out a bug report. Please include as much detail as you can so we can reproduce the issue.
+
+  - type: checkboxes
+    id: ha_deployment
+    attributes:
+      label: HA deployment method
+      description: Select all that apply.
+      options:
+        - label: Home Assistant OS / managed
+        - label: Home Assistant Supervised
+        - label: Home Assistant Container (Docker)
+        - label: Home Assistant Core (venv)
+        - label: Other (describe below)
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: hardware
+    attributes:
+      label: Hardware
+      description: Select all that apply.
+      options:
+        - label: Raspberry Pi 4
+        - label: Raspberry Pi 3 or earlier
+        - label: NUC / x86_64 mini PC
+        - label: Virtual machine
+        - label: Other (describe below)
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: platform
+    attributes:
+      label: Platform / OS
+      description: Select all that apply.
+      options:
+        - label: Home Assistant OS
+        - label: Debian/Ubuntu
+        - label: Alpine
+        - label: macOS
+        - label: Windows
+        - label: Other (describe below)
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to replicate
+      description: Provide a clear, step-by-step path to reproduce the issue.
+      placeholder: |
+        1. Go to...
+        2. Click on...
+        3. Observe...
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: If applicable, add screenshots or screen recordings (drag and drop).
+
+  - type: textarea
+    id: other
+    attributes:
+      label: Anything else relevant
+      description: Logs, configuration snippets, or other details that might help.
+
