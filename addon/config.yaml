@@ -1,0 +1,9 @@
+name: HA Config Exporter
+version: 0.1
+slug: ha-config-exporter
+description: Export Home Assistant configuration into normalized YAML files.
+startup: once
+options:
+  output_dir: /share/ha-export
+schema:
+  output_dir: str

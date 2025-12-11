@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "key": "core.area_registry",
+  "data": {
+    "areas": [
+      {"id": "entry", "name": "Entry"},
+      {"id": "yard", "name": "Yard"}
+    ]
+  }
+}

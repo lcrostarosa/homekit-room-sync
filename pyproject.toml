@@ -1,59 +1,58 @@
 [tool.poetry]
-name = "homekit-room-sync"
-version = "0.0.1"
-description = "Home Assistant custom integration to sync Areas with HomeKit Rooms"
-authors = ["Lucas Crostarosa <lucas@crostamusic.com>"]
+name = "ha-config-exporter"
+version = "0.1.0"
+description = "Read-only Home Assistant configuration exporter with deterministic YAML output"
+authors = ["ha-config-exporter maintainers <dev@ha-exporter.local>"]
 license = "MIT"
 readme = "README.md"
-repository = "https://github.com/lcrostarosa/homekit-room-sync"
-package-mode = false
+repository = "https://github.com/example/ha-config-exporter"
+packages = [{ include = "ha_export", from = "src" }]
 
 [tool.poetry.dependencies]
-python = "^3.13.3"
+python = ">=3.11,<4.0"
+requests = ">=2.32"
+PyYAML = ">=6.0"
 
 [tool.poetry.group.dev.dependencies]
-ruff = "^0.8.0"
-mypy = "^1.13.0"
-pytest = "^8.3.0"
-pytest-asyncio = "^0.24.0"
-voluptuous = "^0.15.0"
-homeassistant = "^2025.12.1"
+pytest = ">=8.3"
+ruff = ">=0.8"
+mypy = ">=1.13"
+
+[tool.poetry.scripts]
+ha-export = "ha_export.cli:main"
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.ruff]
-target-version = "py312"
+target-version = "py311"
 line-length = 100
 
 [tool.ruff.lint]
 select = [
-    "E",   # pycodestyle errors
-    "W",   # pycodestyle warnings
-    "F",   # Pyflakes
-    "I",   # isort
-    "B",   # flake8-bugbear
-    "C4",  # flake8-comprehensions
-    "UP",  # pyupgrade
-    "ARG", # flake8-unused-arguments
-    "SIM", # flake8-simplify
+    "E",
+    "W",
+    "F",
+    "I",
+    "B",
+    "C4",
+    "UP",
+    "ARG",
+    "SIM",
 ]
-ignore = [
-    "E501",  # line too long (handled by formatter)
-]
+ignore = ["E501"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["custom_components.homekit_room_sync"]
+known-first-party = ["ha_export"]
 
 [tool.mypy]
-python_version = "3.13.3"
+python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
-asyncio_mode = "auto"
 testpaths = ["tests"]
-
+addopts = "-q"

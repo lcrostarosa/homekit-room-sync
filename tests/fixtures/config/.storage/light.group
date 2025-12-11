@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "key": "light.group",
+  "data": {
+    "items": [
+      {
+        "name": "House Lights",
+        "entity_id": "light.house",
+        "entities": ["light.porch", "light.living_room"]
+      }
+    ]
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "key": "lovelace-dashboard-main",
+  "data": {
+    "config": {
+      "title": "Main",
+      "views": []
+    }
+  }
+}

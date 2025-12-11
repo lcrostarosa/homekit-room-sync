@@ -1,0 +1,5 @@
+{
+  "config": [
+    {"id": "autonomous_light", "alias": "Autonomous Light"}
+  ]
+}

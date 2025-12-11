@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "key": "scene.storage",
+  "data": {
+    "items": [
+      {
+        "id": "scene.living_room_relax",
+        "name": "Living Room Relax",
+        "alias": "Relax",
+        "entities": {
+          "light.lamp": {
+            "state": "on",
+            "brightness": 180
+          }
+        }
+      }
+    ]
+  }
+}

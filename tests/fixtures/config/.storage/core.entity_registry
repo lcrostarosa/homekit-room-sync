@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "key": "core.entity_registry",
+  "data": {
+    "entities": [
+      {
+        "entity_id": "sensor.outdoor_temperature",
+        "name": "Outdoor Temperature",
+        "original_name": "Temp",
+        "platform": "sensor",
+        "device_id": "device1",
+        "area_id": "yard"
+      },
+      {
+        "entity_id": "light.porch",
+        "name": "Porch Light",
+        "platform": "light",
+        "area_id": "entry"
+      }
+    ]
+  }
+}
