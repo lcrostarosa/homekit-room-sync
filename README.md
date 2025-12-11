@@ -1,251 +1,124 @@
-# HomeKit Room Sync
+# ha-config-exporter
 
-[![Status: Pre-Alpha](https://img.shields.io/badge/Status-Pre--Alpha-red.svg)](https://github.com/lcrostarosa/homekit-room-sync)
-[![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Contributors Welcome](https://img.shields.io/badge/Contributors-Welcome-brightgreen.svg)](https://github.com/lcrostarosa/homekit-room-sync/blob/master/CONTRIBUTING.md)
+`ha-config-exporter` is a **read-only** command line tool that snapshots a Home Assistant
+configuration into a deterministic `config_export/` folder. The goal is to produce clean
+Git-friendly YAML so configuration churn is obvious and reviewable.
 
-A Home Assistant custom integration that automatically synchronizes your Home Assistant Areas with HomeKit Room assignments.
+## Features
 
-## Why This Exists
-
-The [HomeKit Bridge configuration](https://www.home-assistant.io/integrations/homekit#configuration) in Home Assistant has **no concept of filtering entities by Area**.
-
-You can filter by domains (lights, switches, fans, etc.) and use wildcards, but this approach is opinionated and becomes a maintenance headache over time. Every time you add a new device, you have to think about whether it matches your existing filters.
-
-**The problem:** You organize your smart home by rooms (Areas) in Home Assistant, but HomeKit Bridge forces you to think in terms of entity types and naming patterns. This disconnect makes configuration fragile and tedious to maintain.
-
-**The solution:** HomeKit Room Sync bridges this gap. Organize your devices into Areas in Home Assistant, and this integration automatically syncs those room assignments to your HomeKit bridges. Add a device to an Area once, and it syncs to your Homekit Bridge.
+- Pulls data from the Home Assistant REST API, `/config` YAML, and `.storage` JSON files
+- Deterministic YAML renderer (2-space indent, ordered keys, null-stripping)
+- Incremental writes and dry-run diff preview for clean Git diffs
+- Modular exporter system (`automations`, `scripts`, `scenes`, `helpers`, `entities`, ...)
+- Directory scaffold that always matches the expected Supervisor share layout
+- Supervisor add-on manifest (optional) for easy deployment inside Home Assistant OS
 
 ## Installation
 
-### HACS (Recommended)
-
-1. Open HACS in your Home Assistant instance
-2. Click on "Integrations"
-3. Click the three dots in the top right corner
-4. Select "Custom repositories"
-5. Add this repository URL: `https://github.com/lcrostarosa/homekit-room-sync`
-6. Select category: "Integration"
-7. Click "Add"
-8. Search for "HomeKit Room Sync" and install it
-9. Restart Home Assistant
-
-### Manual Installation
-
-1. Download the `custom_components/homekit_room_sync` folder from this repository
-2. Copy it to your Home Assistant `config/custom_components/` directory
-3. Restart Home Assistant
-
-## Configuration
-
-1. Go to **Settings** → **Devices & Services**
-2. Click **+ Add Integration**
-3. Search for "HomeKit Room Sync"
-4. Select one or more HomeKit Bridges from the list (friendly names are displayed)
-5. Choose the Home Assistant Areas to include and optionally add manual include/exclude entity overrides
-6. Click **Submit**
-
-![Select Bridge](assets/select_bridge.png)
-*Select the HomeKit Bridge you want to sync*
-
-### Usage
-
-Once configured, the integration works automatically in the background.
-
-1. **Assign Areas in Home Assistant**: Go to **Settings > Devices & Services > Entities** and assign an **Area** to your entities (e.g., assign a Light to "Living Room").
-2. **Wait for Sync**: The integration monitors these changes. After a short delay (debounced), it updates the HomeKit configuration.
-3. **Check Apple Home**: Open the Home app on your iOS device. The device should now be in the corresponding Room in HomeKit.
-
-![Apple Home Room](assets/apple_home_room.png)
-*Devices automatically assigned to the correct room in Apple Home*
-
-### Configuration Options
-
-| Option | Description |
-|--------|-------------|
-| **HomeKit Bridges** | One or more HomeKit Bridge entries to manage (friendly names shown) |
-| **Areas** | Limit syncing to entities assigned to the selected Home Assistant Areas |
-| **Include entity overrides** | Always expose these entities, even if they are not in the allowed Areas |
-| **Exclude entity overrides** | Never expose these entities, even if they would otherwise match |
-
-### Multiple Bridges
-
-You can manage **multiple HomeKit bridges inside a single HomeKit Room Sync entry**. Each bridge gets its own Area filters and include/exclude overrides. If you prefer to keep things isolated you can still add additional HomeKit Room Sync entries.
-
-## How It Works
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    Home Assistant                               │
-│                                                                 │
-│  ┌──────────────┐    ┌─────────────────────────┐                │
-│  │ Entity/Area  │───▶│ HomeKit Room Sync       │                │
-│  │ Registry     │    │ (Listens for changes)   │                │
-│  └──────────────┘    └───────────┬─────────────┘                │
-│                                  │                              │
-│                                  ▼                              │
-│                      ┌─────────────────────────┐                │
-│                      │ HomeKit Config Entries  │                │
-│                      │ (filter & entity_config)│                │
-│                      └───────────┬─────────────┘                │
-│                                  │                              │
-│                                  ▼                              │
-│                      ┌─────────────────────────┐                │
-│                      │ homekit.reload service  │                │
-│                      │ (Applies changes)       │                │
-│                      └───────────┬─────────────┘                │
-│                                  │                              │
-└──────────────────────────────────┼──────────────────────────────┘
-                                   │
-                                   ▼
-                        ┌─────────────────────┐
-                        │   Apple HomeKit     │
-                        │   (Updated rooms)   │
-                        └─────────────────────┘
-```
-
-### Room Assignment Priority
-
-For each entity, the room is determined in the following order:
-
-1. **Entity's direct area**: If the entity has an area assigned directly
-2. **Device's area**: If the entity's parent device has an area assigned
-3. **No change**: If neither area is available, the room assignment is left as-is
-
-## Important Notes
-
-- Uses the official Home Assistant config-entry API (no direct `.storage` editing)
-- Requires Home Assistant 2025.12.1 or newer so the HomeKit integration understands per-entry filters
-- Each sync triggers a HomeKit reload for the affected bridge
-
-### Supported Home Assistant Versions
-
-- Home Assistant 2025.12.1 or newer
-
-### Known Limitations
-
-- Changes may take a few seconds to appear in the Apple Home app after sync
-- Some HomeKit apps may cache room assignments; force-close and reopen the app if changes don't appear
-- Exposure is controlled by the HomeKit Bridge integration (include domains/areas). Room alignment still requires writing per-entity `entity_config` data; HomeKit does not auto-map HA areas to rooms on its own.
-
-## Troubleshooting
-
-### Sync Not Working
-
-1. Check that the HomeKit Bridge integration is set up and running
-2. Verify that entities are exposed to HomeKit
-3. Check the Home Assistant logs for error messages
-
-### Rooms Not Updating in Apple Home
-
-1. Wait a few seconds for the sync to complete
-2. Force-close the Apple Home app and reopen it
-3. Try removing and re-adding the bridge in Apple Home (last resort)
-
-### Enable Debug Logging
-
-Add this to your `configuration.yaml`:
-
-```yaml
-logger:
-  default: info
-  logs:
-    custom_components.homekit_room_sync: debug
-```
-
-## Development
-
-### Setup
-
 ```bash
-# Clone the repository
-git clone https://github.com/lcrostarosa/homekit-room-sync.git
-cd homekit-room-sync
-
-# Install dependencies with Poetry
+pip install .
+# or with Poetry
 poetry install
-
-# Run linting
-poetry run ruff check .
-
-# Run type checking
-poetry run mypy custom_components/homekit_room_sync
 ```
 
-### Local Deployment via SSH
+This project targets Python 3.11+.
 
-For quick development iteration, you can deploy directly to your Home Assistant server using the included deploy script.
-
-#### Quick Start
+## Usage
 
 ```bash
-# Deploy to a specific host
-make deploy HOST=192.168.1.100
-
-# Or use the script directly
-./scripts/deploy.sh homeassistant.local
+ha-export \
+  --ha-url http://homeassistant.local:8123 \
+  --token YOUR_LONG_LIVED_TOKEN \
+  --config-dir /config \
+  --output ./config_export \
+  --incremental
 ```
 
-#### Using Environment Variables
+### CLI flags
 
-Create a `.env` file for persistent configuration:
+| Flag | Description |
+| --- | --- |
+| `--ha-url` | Home Assistant base URL (required for automations exporter) |
+| `--token` | Long-lived token paired with `--ha-url` |
+| `--config-dir` | Path to HA config folder (default `/config`) |
+| `--output` | Destination folder (must match `config_export` structure) |
+| `--incremental` | Only rewrite when file contents differ |
+| `--dry-run` | Show unified diffs without writing |
+| `--include/--exclude` | Comma separated exporter names to run or skip |
+| `--verbose/--quiet` | Adjust log verbosity |
+
+### Deterministic YAML rules
+
+- 2-space indentation with `yaml.safe_dump`
+- Key order: `id`, `alias`, `description`, `trigger`, `condition`, `action`, `mode`, then alphabetical
+- `null` / empty dict / empty list values removed
+- Home Assistant UI metadata (`metadata`, `ui_metadata`, `trace`, etc.) stripped
+- Lists rendered in block style for readability
+
+### Exported directory tree
+
+```
+config_export/
+  automations/
+  scripts/
+  scenes/
+  helpers/
+  lights/
+  entities/
+  areas/
+  dashboards/
+  metadata.json
+```
+
+The MVP implements automated exporters for **automations, scripts, scenes, helpers, and the entity
+registry snapshot**. Light groups, area/device topology, and dashboards have stubs in place and are
+next on the roadmap.
+
+## Architecture
+
+```
+src/ha_export/
+  cli.py             # argparse CLI wiring
+  main.py            # run loop, exporter orchestration, metadata handling
+  models.py          # shared ExportContext dataclass
+  utils/
+    api.py           # Home Assistant REST helper
+    fs.py            # file IO, safe writes, slug generation
+    yaml.py          # deterministic normalization + dumper
+  exporters/
+    base.py          # abstract exporter contract
+    automations.py   # REST-backed fetch of automation configs
+    scripts.py       # scripts.yaml or script.* storage
+    scenes.py        # scene.storage entries
+    helpers.py       # input_* helpers
+    entities.py      # core.entity_registry snapshot
+    lights.py        # placeholder for light groups
+    areas.py         # placeholder for area/device mapping
+    dashboards.py    # placeholder for Lovelace dashboards
+```
+
+Each exporter implements `discover`, `export`, and `output_path` so new data sources can be added
+without touching the CLI.
+
+## Testing
+
+Pytest fixtures mimic a `/config` tree with `.storage` files. The tests assert deterministic output
+and API interactions.
 
 ```bash
-# Copy the example file
-cp env.example .env
-
-# Edit with your settings
-nano .env
+poetry run pytest
 ```
 
-Example `.env` configuration:
+CI hooks can later enforce `ruff` and `mypy` once the roadmap items land.
 
-```bash
-HA_HOST=192.168.1.100
-HA_USER=root
-HA_SSH_PORT=22
-HA_CONFIG_PATH=/config
-HA_RESTART=false
-```
+## Supervisor add-on (optional)
 
-Then simply run:
+A starter add-on manifest is available at `addon/config.yaml` for deploying the exporter inside
+Home Assistant OS. Point the `output_dir` option to a writable share, e.g. `/share/ha-export`.
 
-```bash
-make deploy
-```
+## Roadmap
 
-#### Deploy Script Options
-
-```bash
-./scripts/deploy.sh [OPTIONS] [HOST]
-
-Options:
-  -h, --help          Show help message
-  -u, --user USER     SSH user (default: root)
-  -p, --port PORT     SSH port (default: 22)
-  -c, --config PATH   HA config directory (default: /config)
-  -r, --restart       Restart Home Assistant after deployment
-  --dry-run           Show what would be done without executing
-```
-
-#### Common Configuration Paths
-
-| Installation Type | Config Path |
-|-------------------|-------------|
-| HAOS / Docker | `/config` |
-| Supervised | `/usr/share/hassio/homeassistant` |
-| Core (venv) | `/home/homeassistant/.homeassistant` |
-
-### Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Acknowledgments
-
-- [Home Assistant](https://www.home-assistant.io/) for the amazing home automation platform
-- [HACS](https://hacs.xyz/) for making custom integration distribution easy
+- Implement remaining exporters (light groups, area/device topology, dashboards)
+- Add richer filtering (per-entity patterns, tag selectors)
+- Wire automated publishing to HACS once exporters are complete
+- Bundle binary builds for Linux containers and Supervisor add-on images

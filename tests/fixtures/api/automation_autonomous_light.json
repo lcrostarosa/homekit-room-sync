@@ -1,0 +1,11 @@
+{
+  "id": "autonomous_light",
+  "alias": "Autonomous Light",
+  "trigger": [
+    {"platform": "sun", "event": "sunrise"}
+  ],
+  "action": [
+    {"service": "light.turn_on", "target": {"entity_id": "light.porch"}}
+  ],
+  "mode": "single"
+}

@@ -1,0 +1,15 @@
+wake_up:
+  alias: "Wake Up"
+  sequence:
+    - service: light.turn_on
+      target:
+        entity_id: light.bedroom
+    - delay: "00:00:10"
+      description: "Short pause"
+scene_launcher:
+  alias: "Scene Launcher"
+  mode: single
+  sequence:
+    - service: scene.turn_on
+      target:
+        entity_id: scene.relax

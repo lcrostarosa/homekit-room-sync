@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "key": "script.storage",
+  "data": {
+    "items": [
+      {
+        "id": "storage_script",
+        "alias": "Storage Script",
+        "sequence": [
+          {
+            "service": "notify.notify",
+            "data": {"message": "Hello"}
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,190 +1,76 @@
-"""Pytest fixtures for HomeKit Room Sync tests."""
-
 from __future__ import annotations
 
-import sys
-from unittest.mock import AsyncMock, MagicMock
+import json
+import logging
+import shutil
+from pathlib import Path
+from typing import Callable, Optional
 
 import pytest
 
-# Inject mock homeassistant modules before importing custom_components
-from tests.ha_mocks import homeassistant
-from tests.ha_mocks.homeassistant import config_entries, core
-from tests.ha_mocks.homeassistant.helpers import (
-    area_registry,
-    config_validation,
-    device_registry,
-    entity_registry,
-    event,
-)
+from ha_export.models import ExportContext
+from ha_export.utils import fs, yaml as yaml_utils
 
-sys.modules["homeassistant"] = homeassistant
-sys.modules["homeassistant.core"] = core
-sys.modules["homeassistant.config_entries"] = config_entries
-sys.modules["homeassistant.helpers"] = homeassistant.helpers
-sys.modules["homeassistant.helpers.area_registry"] = area_registry
-sys.modules["homeassistant.helpers.config_validation"] = config_validation
-sys.modules["homeassistant.helpers.device_registry"] = device_registry
-sys.modules["homeassistant.helpers.entity_registry"] = entity_registry
-sys.modules["homeassistant.helpers.event"] = event
-
-from custom_components.homekit_room_sync.const import (
-    CONF_AREAS,
-    CONF_BRIDGES,
-    CONF_ENTRY_ID,
-    CONF_EXCLUDE_ENTITIES,
-    CONF_INCLUDE_ENTITIES,
-    DOMAIN,
-    HOMEKIT_DOMAIN,
-)
+FIXTURES = Path(__file__).parent / "fixtures"
 
 
-@pytest.fixture
-def mock_homekit_entry() -> MagicMock:
-    """Create a mock HomeKit config entry."""
-    entry = MagicMock()
-    entry.entry_id = "homekit_entry_1"
-    entry.title = "Living Bridge"
-    entry.data = {"filter": {}, "entity_config": {}}
-    return entry
+@pytest.fixture()
+def config_dir(tmp_path: Path) -> Path:
+    target = tmp_path / "config"
+    shutil.copytree(FIXTURES / "config", target)
+    return target
 
 
-@pytest.fixture
-def mock_hass(mock_homekit_entry: MagicMock) -> MagicMock:
-    """Create a mock Home Assistant instance."""
-    hass = MagicMock()
-    hass.config.path = MagicMock(return_value="/config")
-    hass.data = {}
-    hass.bus = MagicMock()
-    hass.bus.async_listen = MagicMock(return_value=MagicMock())
-    hass.services = MagicMock()
-    hass.services.async_call = AsyncMock()
-    hass.services.async_register = MagicMock()
-    hass.config_entries = MagicMock()
-
-    def _async_entries(domain: str | None = None):
-        if domain == HOMEKIT_DOMAIN:
-            return [mock_homekit_entry]
-        if domain == DOMAIN:
-            return []
-        return []
-
-    hass.config_entries.async_entries = MagicMock(side_effect=_async_entries)
-    hass.config_entries.async_get_entry = MagicMock(
-        side_effect=lambda entry_id: mock_homekit_entry
-        if entry_id == mock_homekit_entry.entry_id
-        else None
-    )
-    hass.config_entries.async_update_entry = MagicMock()
-    hass.config_entries.async_reload = AsyncMock()
-
-    # Mock async_add_executor_job to run synchronously
-    async def mock_executor_job(func, *args, **kwargs):
-        return func(*args, **kwargs)
-
-    hass.async_add_executor_job = mock_executor_job
-    return hass
+@pytest.fixture()
+def output_dir(tmp_path: Path) -> Path:
+    target = tmp_path / "export"
+    target.mkdir()
+    fs.ensure_export_tree(target)
+    return target
 
 
-@pytest.fixture
-def mock_config_entry(mock_homekit_entry: MagicMock) -> MagicMock:
-    """Create a mock config entry."""
-    entry = MagicMock()
-    entry.entry_id = "test_entry_id"
-    entry.data = {
-        CONF_BRIDGES: [
-            {
-                CONF_ENTRY_ID: mock_homekit_entry.entry_id,
-                CONF_AREAS: [],
-                CONF_INCLUDE_ENTITIES: [],
-                CONF_EXCLUDE_ENTITIES: [],
-            }
-        ]
-    }
-    entry.title = "HomeKit Bridge: Living Bridge"
-    entry.version = 3
-    entry.async_on_unload = MagicMock()
-    entry.add_update_listener = MagicMock(return_value=MagicMock())
-    return entry
+@pytest.fixture()
+def logger() -> logging.Logger:
+    logging.basicConfig(level=logging.DEBUG)
+    return logging.getLogger("ha_export.tests")
 
 
-@pytest.fixture
-def mock_entity_registry() -> MagicMock:
-    """Create a mock entity registry."""
-    registry = MagicMock()
+@pytest.fixture()
+def context_factory(config_dir: Path, output_dir: Path, logger: logging.Logger) -> Callable[..., ExportContext]:
+    storage_dir = config_dir / ".storage"
 
-    # Create mock entity entries
-    entity_with_area = MagicMock()
-    entity_with_area.entity_id = "light.living_room"
-    entity_with_area.area_id = "area_living_room"
-    entity_with_area.device_id = None
+    def _factory(*, api=None, incremental: bool = True, dry_run: bool = False) -> ExportContext:
+        return ExportContext(
+            config_dir=config_dir,
+            storage_dir=storage_dir,
+            output_dir=output_dir,
+            api=api,
+            incremental=incremental,
+            dry_run=dry_run,
+            include=set(),
+            exclude=set(),
+            logger=logger,
+            dump_yaml=yaml_utils.dump_yaml,
+        )
 
-    entity_with_device = MagicMock()
-    entity_with_device.entity_id = "switch.bedroom"
-    entity_with_device.area_id = None
-    entity_with_device.device_id = "device_1"
-
-    entity_without_area = MagicMock()
-    entity_without_area.entity_id = "sensor.unknown"
-    entity_without_area.area_id = None
-    entity_without_area.device_id = None
-
-    entity_map = {
-        "light.living_room": entity_with_area,
-        "switch.bedroom": entity_with_device,
-        "sensor.unknown": entity_without_area,
-    }
-
-    def get_entity(entity_id: str):
-        return entity_map.get(entity_id)
-
-    registry.async_get = get_entity
-    registry.entities = entity_map
-    return registry
+    return _factory
 
 
-@pytest.fixture
-def mock_device_registry() -> MagicMock:
-    """Create a mock device registry."""
-    registry = MagicMock()
+class MockHomeAssistantAPI:
+    def __init__(self) -> None:
+        data_path = FIXTURES / "api" / "automations.json"
+        self._definition = json.loads(data_path.read_text(encoding="utf-8"))
 
-    device = MagicMock()
-    device.area_id = "area_bedroom"
+    def list_automations(self):
+        return self._definition.get("config", [])
 
-    def get_device(device_id: str):
-        if device_id == "device_1":
-            return device
-        return None
-
-    registry.async_get = get_device
-    return registry
+    def get_automation(self, automation_id: str):
+        detail_path = FIXTURES / "api" / f"automation_{automation_id}.json"
+        if not detail_path.exists():
+            raise KeyError(automation_id)
+        return json.loads(detail_path.read_text(encoding="utf-8"))
 
 
-@pytest.fixture
-def mock_area_registry() -> MagicMock:
-    """Create a mock area registry."""
-    registry = MagicMock()
-
-    living_room = MagicMock()
-    living_room.name = "Living Room"
-    living_room.id = "area_living_room"
-
-    bedroom = MagicMock()
-    bedroom.name = "Bedroom"
-    bedroom.id = "area_bedroom"
-
-    def get_area(area_id: str):
-        if area_id == "area_living_room":
-            return living_room
-        elif area_id == "area_bedroom":
-            return bedroom
-        return None
-
-    registry.async_get_area = get_area
-
-    # For config flow - list all areas
-    registry.async_list_areas = MagicMock(return_value=[living_room, bedroom])
-
-    return registry
-
-
+@pytest.fixture()
+def mock_api() -> MockHomeAssistantAPI:
+    return MockHomeAssistantAPI()
